@@ -1,10 +1,12 @@
 #include "window/drawingtable/drawingtable.h"
-#include "components/conf/machineconfiguration.h"
-#include "components/conf/schemaconfiguration.h"
+#include "components/connectable.h"
 #include "components/link.h"
 #include "components/machine.h"
 #include "components/schema.h"
 #include "components/switch.h"
+#include "context/user.h"
+#include <fstream>
+
 #include "utils/iconSize.h"
 #include "window/drawingtable/scene.h"
 #include "window/users.h"
@@ -13,40 +15,62 @@
 #include <QPixmap>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QSizePolicy>
 #include <QVBoxLayout>
-
+#include <memory>
+#include <qt5/QtWidgets/qsizepolicy.h>
+#include <window/addworkloadwindow.h>
 void printSchema(Schema *schema);
 
-DrawingTable::DrawingTable(QFrame *parent)
-    : DrawingTable(new Schema(), parent)
+DrawingTable::DrawingTable(QFrame *parent) : DrawingTable(new Schema(), parent)
 {
+    mainContext.mainSchema = std::shared_ptr<Schema>(this->schema);
+    int id = mainContext.mainSchema->allocateNewMachine();
+    auto machine = &mainContext.mainSchema->connectables[id];
+
+    //-------------------------------------------------------------------------
+    // TEMPORARY
+    mainContext.users.push_back(Context::User{.name="John", .allowedUsage=0.9});
+//   mainContext.workloads.push_back(Context::Workload{.owner=std::make_shared<Context::User>(mainContext.users[0]), .master=static_cast<Machine *>(machine->get())});
+
+    //-------------------------------------------------------------------------
+
+    /* QPixmap workloadIcon(":/icons/perfil.png"); */
+    /* QPixmap  = image.scaled(buttonSize); */
+
+    auto workloadButton = new QPushButton("Workload", this);
+    workloadButton->setSizePolicy(
+        QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
+    workloadButton->setFixedSize(70, 40);
+
+    //-------------------------------------------------------------------------
+
     QPixmap image(":/icons/perfil.png");
-    QSize   imageSize(30, 30);
-    QPixmap resizedImage =
-        image.scaled(imageSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    QPixmap resizedImage = image.scaled(buttonSize);
 
-    openUserWindow = new QPushButton(this);
+    openUserWindow = new QPushButton("Users", this);
     openUserWindow->setIcon(QIcon(resizedImage));
-    openUserWindow->setIconSize(image.size());
-    openUserWindow->setFixedSize(40, 40);
+    openUserWindow->setSizePolicy(
+        QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
+    openUserWindow->setFixedSize(70, 40);
 
-    //----------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------
 
     QPixmap image_2(":/icons/engine.png");
-    QSize   imageSize_2(30, 30);
-    QPixmap resizedImage_2 = image_2.scaled(
-        imageSize_2, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    QPixmap resizedImage_2 = image_2.scaled(buttonSize);
 
     openSimulationWindow = new QPushButton("Simulate", this);
     openSimulationWindow->setIcon(QIcon(resizedImage_2));
-    openSimulationWindow->setIconSize(imageSize_2);
-
+    openUserWindow->setSizePolicy(
+        QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
     openSimulationWindow->setFixedSize(100, 40);
 
-    //----------------------------------------------------------------------------------------
+    //-------------------------------------------------------------------------
 
+    buttonsLayout->addWidget(workloadButton, 0, Qt::AlignRight);
     buttonsLayout->addWidget(openUserWindow, 0, Qt::AlignRight);
     buttonsLayout->addWidget(openSimulationWindow, 0, Qt::AlignRight);
+
 
     connect(openUserWindow,
             &QPushButton::clicked,
@@ -56,6 +80,11 @@ DrawingTable::DrawingTable(QFrame *parent)
             &QPushButton::clicked,
             this,
             &DrawingTable::openSimulationWindowClicked);
+    connect(workloadButton,
+            &QPushButton::clicked,
+            this,
+            &DrawingTable::openWorkloadWindow);
+
 }
 
 DrawingTable::DrawingTable(Schema *schema, QWidget *parent) : QWidget{parent}
@@ -71,6 +100,7 @@ DrawingTable::DrawingTable(Schema *schema, QWidget *parent) : QWidget{parent}
     this->setupNoneButton();
     this->setupPcButton();
     this->setupSchemaButton();
+    this->setupSetButton();
     this->setupLinkButton();
     this->setupSwitchButton();
 
@@ -97,6 +127,19 @@ void DrawingTable::setupPcButton()
     this->buttonsLayout->addWidget(pcButton);
     QObject::connect(
         pcButton, &QRadioButton::clicked, this, &DrawingTable::pcButtonClicked);
+}
+
+void DrawingTable::setupSetButton()
+{
+    this->setButton = new QRadioButton(this->buttonsRow);
+    this->setButton->setIcon(
+        QIcon(QPixmap::fromImage(QImage(":icons/connectableset.png"))));
+    this->setButton->setIconSize(buttonSize);
+    this->buttonsLayout->addWidget(setButton);
+    QObject::connect(setButton,
+                     &QRadioButton::clicked,
+                     this,
+                     &DrawingTable::setButtonClicked);
 }
 
 ///
@@ -172,7 +215,7 @@ PixmapIcon *DrawingTable::addMachine()
 {
     const unsigned machineId = schema->allocateNewMachine();
 
-    return schema->machines.at(machineId)->getIcon();
+    return schema->connectables.at(machineId)->getIcon();
 }
 
 ///
@@ -187,7 +230,7 @@ PixmapIcon *DrawingTable::addSwitch()
     // FOR DEBUG
     printSchema(schema);
 
-    return schema->switches.at(switchId)->getIcon();
+    return schema->connectables.at(switchId)->getIcon();
 }
 
 ///
@@ -202,7 +245,17 @@ PixmapIcon *DrawingTable::addSchema()
     // FOR DEBUG
     printSchema(schema);
 
-    return schema->schemas.at(schemaId)->getIcon();
+    return schema->connectables.at(schemaId)->getIcon();
+}
+
+PixmapIcon *DrawingTable::addSet()
+{
+    const unsigned schemaId = schema->allocateNewSet();
+
+    // FOR DEBUG
+    printSchema(schema);
+
+    return schema->connectables.at(schemaId)->getIcon();
 }
 
 ///
@@ -226,6 +279,11 @@ Link *DrawingTable::addLink(LinkConnections connections)
 void DrawingTable::pcButtonClicked()
 {
     this->scene->pickOp = PC;
+}
+
+void DrawingTable::setButtonClicked()
+{
+    this->scene->pickOp = SET;
 }
 
 ///
@@ -265,55 +323,105 @@ void DrawingTable::schemaButtonClicked()
 ///
 void printSchema(Schema *schema)
 {
-    for (auto machine = schema->machines.begin();
-         machine != schema->machines.end();
+    for (auto machine = schema->connectables.begin();
+         machine != schema->connectables.end();
          machine++) {
 
-        qDebug() << "Machine #" << machine->second->conf->getId() << ": "
-                 << machine->second->conf->getName().c_str();
+        qDebug() << "Connectable #" << machine->second->getId() << ": "
+                 << machine->second->getConf()->getName().c_str();
     }
 
-    for (auto &[id, nswitch] : schema->switches) {
+    for (auto &[id, nswitch] : schema->connectables) {
 
-        qDebug() << "Switch #" << id << ": " << nswitch->getName().c_str();
+        qDebug() << "Connectable #" << id << ": "
+                 << nswitch->getConf()->getName().c_str();
     }
 
-    for (auto sch = schema->schemas.begin(); sch != schema->schemas.end();
+    for (auto sch = schema->connectables.begin();
+         sch != schema->connectables.end();
          sch++) {
 
-        qDebug() << "Schema #" << sch->second->getConf()->getId() << ": "
-                 << sch->second->getConf()->getName();
+        qDebug() << "Connectable #" << sch->second->getId() << ": "
+                 << sch->second->getConf()->getName().c_str();
     }
 
     for (auto link = schema->links.begin(); link != schema->links.end();
          link++) {
 
-        qDebug() << "Link #" << link->second->conf->getId() << ": "
+        qDebug() << "Link #" << link->second->getId() << ": "
                  << link->second->conf->getName().c_str();
     }
 }
 void DrawingTable::openUserWindowClicked()
 {
-    /* this->userWindow = */
-    /*     new UserWindow(nullptr, */
-    /*                    this, */
-    /*                    list1Data, */
-    /*                    list2Data); // Pass the lists to UserWindow
-     * constructor */
+    auto userWindow = new UserWindow(&this->mainContext);
 
     userWindow->show();
 }
 
 void DrawingTable::openSimulationWindowClicked()
 {
-    this->simulationWindow = new Simulation();
-    simulationWindow->show();
+    /// temporary must be removed when simulation allows more than one workload
+    this->mainContext.workloads.at(0).master_id = this->schema->getMasterId();
+
+
+    json j     = *this->schema;
+    j["users"] = this->mainContext.users;
+
+    j["workloads"] = this->mainContext.workloads;
+
+
+
+    std::string fileName = "output.json";
+    std::ofstream outputFile(fileName);
+
+    if (outputFile.is_open()) {
+        outputFile << j.dump(4);
+        outputFile.close();
+        QMessageBox::information(nullptr, "Sucesso", "Arquivo criado com sucesso.");
+
+    } else {
+        QMessageBox::critical(nullptr, "Erro", "Erro ao abrir o arquivo para escrita.");
+
+    }
+
+    QFile file("routes.route");
+
+           /// @todo treat it
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        exit(0);
+    }
+
+    QTextStream outStream(&file);
+
+    for (const auto &link : this->schema->links) {
+        outStream << link.second->connections.begin->getId() << " ";
+        outStream << link.second->getId() << " ";
+        outStream << link.second->connections.end->getId() << "\n";
+    }
+
+    file.close();
+    /* this->simulationWindow = new Simulation(); */
+    /* simulationWindow->show(); */
 }
 
-void DrawingTable::addIcons(std::vector<Connection *> *items)
+void DrawingTable::addIcons(std::vector<Connectable *> *items)
 {
     for (auto it : *items) {
         this->scene->addIcon(static_cast<PixmapIcon *>(it->getIcon()),
                              static_cast<PixmapIcon *>(it->getIcon())->pos());
     }
+}
+
+void DrawingTable::openWorkloadWindow()
+{
+    addWorkloadWindow *workloadwindow = new addWorkloadWindow(this, &this->mainContext);
+
+    workloadwindow->show();
+}
+
+
+Scene *DrawingTable::getScene()
+{
+    return this->scene;
 }

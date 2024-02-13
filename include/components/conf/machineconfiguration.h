@@ -1,22 +1,22 @@
 #pragma once
 #include "components/conf/itemconfiguration.h"
+#include <QString>
+#include <qobject.h>
 #include <string>
 #include <vector>
+#include "nlohmann/json.hpp"
+using json = nlohmann::json;
 
 class MachineConfiguration : public ItemConfiguration
 {
 public:
-    MachineConfiguration(std::string name, unsigned id);
-    MachineConfiguration(MachineConfiguration &conf) = default;
+    explicit MachineConfiguration(std::string_view const &name);
+    ~MachineConfiguration() = default;
 
-    std::string getName();
-    void        setName(std::string name);
-    unsigned    getId();
-    void        setId(unsigned id);
+    std::string getName() const override;
+    void        setName(std::string_view const &newName) override;
 
-private:
     std::string name;
-    unsigned    id;
     /**
      * It represents the computational power.
      */
@@ -78,4 +78,13 @@ private:
      * It contains the scheduling algorithm used.
      */
     std::string schedulingAlgorithm;
+    double gpuPower;
+    int gpuCoreCount;
+    double gpuInterconnectionBandwidth;
+    double wattageIdle;
+    double wattageMax;
+    std::string scheduler;
+    std::vector<unsigned> slaves;
 };
+
+void to_json(json &j, const MachineConfiguration &m);

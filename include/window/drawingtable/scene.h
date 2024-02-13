@@ -1,6 +1,7 @@
 #ifndef SCENE_H
 #define SCENE_H
 
+#include "components/cloner/connectablecloner.h"
 #include "components/cloner/machinecloner.h"
 #include "components/machine.h"
 #include "qglobal.h"
@@ -14,7 +15,8 @@ typedef enum PICK_OP
     PC,
     SCHEMA,
     LINK,
-    SWITCH
+    SWITCH,
+    SET,
 } PICK_OP;
 
 class LinkIcon;
@@ -41,23 +43,21 @@ public:
     PICK_OP pickOp;
 
     QLabel *machineDescriptionLabel;
+    void                    addLink(Link *link);
 
 private:
-    QPointF            getScenePosition();
-    DrawingTable      *table;
-    Schema            *schema;
-    Connection        *lBegin;
-    Connection        *lEnd;
-    void               addLink(Link *link);
-    Connection        *whichConnection(QPointF pos);
-    void               removeLink(Link *link);
-    void               deleteItems();
-    UserWindow        *userWindow;
-    QPointF            startSelection;
-    QGraphicsRectItem *selectionRect;
-    MachineCloner     *mCloner;
-    /* Cloner            *sCloner; */
-    /* Cloner            *sCloner; */
+    QPointF                 getScenePosition();
+    DrawingTable           *table;
+    Schema                 *schema;
+    Connectable            *lBegin;
+    Connectable            *lEnd;
+    Connectable            *whichConnectable(QPointF pos);
+    void                    removeLink(Link *link);
+    void                    deleteItems();
+    UserWindow             *userWindow;
+    QPointF                 startSelection;
+    QGraphicsRectItem      *selectionRect;
+    std::unique_ptr<ConnectableCloner> sceneCloner;
 
     void selectionArea(QGraphicsSceneMouseEvent *event);
 signals:

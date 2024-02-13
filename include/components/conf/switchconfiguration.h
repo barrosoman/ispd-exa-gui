@@ -4,15 +4,26 @@
 class SwitchConfiguration : public ItemConfiguration
 {
 public:
-    SwitchConfiguration(std::string name, unsigned id);
+    explicit SwitchConfiguration(std::string_view const &name);
 
-    unsigned    getId() override;
-    std::string getName() override;
-
-    void setId(unsigned id) override;
-    void setName(std::string name) override;
+    std::string getName() const override;
+    void        setName(std::string_view const &newName) override;
+    unsigned    getBandwidth() const;
+    void        setBandwidth(const unsigned newBandwidth);
+    double      getLatency() const;
+    void        setLatency(const double newLatency);
+    double      getloadFactor() const;
+    void        setloadFactor(const double newloadFactor);
 
 private:
-    unsigned    id   = 0;
-    std::string name = "";
+    std::string name;
+    unsigned    bandwidth;
+    double      loadFactor;
+    double      latency;
 };
+
+#include "nlohmann/json.hpp"
+
+using json = nlohmann::json;
+
+void to_json(json &j, const SwitchConfiguration &sc);

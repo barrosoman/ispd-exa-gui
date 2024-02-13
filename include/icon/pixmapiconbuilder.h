@@ -1,20 +1,20 @@
 #pragma once
-#include "icon/pixmappair.h"
+#include "icon/pixmapicon.h"
 
 class PixmapIcon;
-class Connection;
+class Connectable;
 
 class PixmapIconBuilder
 {
 public:
     PixmapIconBuilder();
 
-    PixmapIconBuilder *setOwner(Connection *item);
+    PixmapIconBuilder *setOwner(Connectable *item);
     PixmapIconBuilder *setPixmapPair(PixmapPair pixmapPair);
 
     PixmapIcon *build();
 
 private:
-    Connection *owner;
+    Connectable *owner;
     PixmapPair *pixmapPair;
 };

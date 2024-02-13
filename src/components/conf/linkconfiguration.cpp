@@ -1,28 +1,50 @@
 #include "components/conf/linkconfiguration.h"
 #include <QDebug>
 
-LinkConfiguration::LinkConfiguration(std::string name, unsigned id)
-    : id(id), name(name)
-{}
-
-LinkConfiguration::~LinkConfiguration() {
-    qDebug() << "LinkConfiguration is being deleted";
-}
-
-unsigned LinkConfiguration::getId()
+LinkConfiguration::LinkConfiguration(std::string_view const name) : name(name)
 {
-    return this->id;
+    this->latency = 0;
+    this->bandwidth = 0;
+    this->loadFactor = 0;
 }
-std::string LinkConfiguration::getName()
+
+std::string LinkConfiguration::getName() const
 {
     return this->name;
 }
 
-void LinkConfiguration::setId(unsigned id)
+void LinkConfiguration::setName(std::string_view const newName)
 {
-    this->id = id;
+    this->name = newName;
 }
-void LinkConfiguration::setName(std::string name)
+
+unsigned LinkConfiguration::getBandwidth() const
 {
-    this->name = name;
+    return this->bandwidth;
+}
+void LinkConfiguration::setBandwidth(const unsigned newBandwidth)
+{
+    this->bandwidth = newBandwidth;
+}
+double LinkConfiguration::getLatency() const
+{
+    return this->latency;
+}
+void LinkConfiguration::setLatency(const double newLatency)
+{
+    this->latency = newLatency;
+}
+double LinkConfiguration::getloadFactor() const
+{
+    return this->loadFactor;
+}
+void LinkConfiguration::setloadFactor(const double newloadFactor)
+{
+    this->loadFactor = newloadFactor;
+}
+
+void to_json(json &j, const LinkConfiguration &lc) {
+    j["bandwidth"] = lc.getBandwidth();
+    j["load"] = lc.getloadFactor();
+    j["latency"] = lc.getLatency();
 }

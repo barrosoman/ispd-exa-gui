@@ -1,5 +1,5 @@
 #include "icon/linkicon.h"
-#include "components/connection.h"
+#include "components/connectable.h"
 #include "components/link.h"
 #include <QDebug>
 #include <QGraphicsDropShadowEffect>
@@ -32,28 +32,21 @@ QPointF getMiddleOfIcon(PixmapIcon *a)
 ///  @see Link
 ///  @param owner  the Link that owns this icon.
 ///
-LinkIcon::LinkIcon(Link *owner) : QGraphicsPolygonItem()
+LinkIcon::LinkIcon(Link *owner) : QGraphicsPolygonItem(), owner(owner)
 {
-    this->owner = owner;
     this->begin = this->owner->connections.begin->getIcon();
     this->end   = this->owner->connections.end->getIcon();
 }
 
-LinkIcon::~LinkIcon()
-{
-    qDebug() << "Deleting the linkicon";
-}
-
 void LinkIcon::draw()
 {
-    // QPen pen;
     linkPen.setWidth(2);
     linkPen.setColor(QColor(9, 132, 227));
     linkPen.setCapStyle(Qt::RoundCap);
     linkPen.setJoinStyle(Qt::RoundJoin);
     linkPen.setCosmetic(true); // Suaviza as bordas da linha
 
-    QGraphicsDropShadowEffect *shadowEffect = new QGraphicsDropShadowEffect();
+    auto shadowEffect = new QGraphicsDropShadowEffect();
     shadowEffect->setColor(
         QColor(0, 0, 0, 100));      // Cor e transparência da sombra
     shadowEffect->setBlurRadius(4); // Raio do efeito de sombreamento
@@ -73,7 +66,7 @@ void LinkIcon::draw()
 /// @brief Update the position of the Link, suppose to be used when moving
 ///        an Icon that the Link is connected.
 ///
-void LinkIcon::updatePositions()
+void LinkIcon::updatePosition()
 {
     QPolygonF newLine;
 
@@ -102,8 +95,17 @@ void LinkIcon::paint(QPainter                       *painter,
     painter->drawPolygon(QPolygonF() << line.p2() << arrowP1 << arrowP2);
 }
 
+void LinkIcon::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
+{
+    this->owner->showConfiguration();
+}
+
 void LinkIcon::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
+    qDebug() << "Nome: " << this->owner->conf.get()->getName().c_str();
+    qDebug() << "Bandwidth: " << this->owner->conf.get()->getBandwidth();
+    qDebug() << "Latency: " << this->owner->conf.get()->getLatency();
+    qDebug() << "Load Factor: " << this->owner->conf.get()->getloadFactor();
     toggleChoosen(); // Call the select function to toggle the color
     QGraphicsPolygonItem::mousePressEvent(event);
 }
@@ -131,4 +133,11 @@ void LinkIcon::toggleChoosen()
 bool LinkIcon::isChosen()
 {
     return this->chose;
+}
+
+void LinkIcon::toggleChosenIfInside(QRectF area)
+{
+    if (area.contains(this->sceneBoundingRect()) && !this->isChosen()) {
+        this->toggleChoosen();
+    }
 }

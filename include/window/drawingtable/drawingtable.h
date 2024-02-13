@@ -1,4 +1,6 @@
 #pragma once
+#include "context/context.h"
+#include "icon/pixmapicon.h"
 #include "window/drawingtable/view.h"
 #include "window/simulation.h"
 #include "window/users.h"
@@ -19,24 +21,24 @@ private:
     Scene *scene;
     View  *view;
 
-    /* QList<QString> list1Data; */
-    /* QList<double>  list2Data; */
-
     QWidget      *buttonsRow;
     QHBoxLayout  *buttonsLayout;
     QRadioButton *pcButton;
+    QRadioButton *setButton;
     QRadioButton *schemaButton;
     QRadioButton *linkButton;
     QRadioButton *noneButton;
 
     QPushButton *openUserWindow;
     QPushButton *openSimulationWindow;
+    Context::MainContext mainContext;
 
     UserWindow *userWindow;
     Simulation *simulationWindow;
 
     void setupPcButton();
     void setupSwitchButton();
+    void setupSetButton();
     void setupNoneButton();
     void setupSchemaButton();
     void setupLinkButton();
@@ -51,14 +53,17 @@ public:
     DrawingTable(Schema *schema, QWidget *parent = nullptr);
     Schema *schema;
 
-    void switchButtonClicked();
-    void pcButtonClicked();
-    void schemaButtonClicked();
-    void linkButtonClicked();
-    void noneButtonClicked();
-    void openUserWindowClicked();
-    void openSimulationWindowClicked();
-    void addIcons(std::vector<Connection *> *items);
+    void   switchButtonClicked();
+    void   setButtonClicked();
+    void   pcButtonClicked();
+    void   schemaButtonClicked();
+    void   linkButtonClicked();
+    void   noneButtonClicked();
+    void   openUserWindowClicked();
+    void   openSimulationWindowClicked();
+    void openWorkloadWindow();
+    void   addIcons(std::vector<Connectable *> *items);
+    Scene *getScene();
 
     void receiveUserWindowData(const QList<QString> &list1Data,
                                const QList<double>  &list2Data);
@@ -66,5 +71,6 @@ public:
     PixmapIcon *addSwitch();
     PixmapIcon *addMachine();
     PixmapIcon *addSchema();
+    PixmapIcon *addSet();
     Link       *addLink(LinkConnections connections);
 };

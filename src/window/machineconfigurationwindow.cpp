@@ -1,137 +1,173 @@
 #include "window/machineconfigurationwindow.h"
+#include "components/conf/machineconfiguration.h"
 #include "ui_machineconfigurationwindow.h"
-#include <QSettings>
 #include <QDialog>
+#include <QSettings>
+#include <qcheckbox.h>
+#include <qlineedit.h>
+#include <qnamespace.h>
+#include <qspinbox.h>
 
-
-MachineConfigurationWindow::MachineConfigurationWindow(const QString &iconName, QWidget *parent) :
-      QDialog(parent),
-      ui(new Ui::MachineConfigurationWindow)
+MachineConfigurationWindow::MachineConfigurationWindow(
+    MachineConfiguration *conf, QWidget *parent)
+    : QDialog(parent), ui(new Ui::MachineConfigurationWindow), conf(conf)
 {
-    ui->setupUi(this);
+    this->ui->setupUi(this);
 
-    connect(ui->okButton, &QPushButton::clicked, this, &MachineConfigurationWindow::configurationClicked);
-    // ui->Owner_ComboBox->addItems(userList);
+    this->setupConfAndWindow();
 }
 
-QString MachineConfigurationWindow::getLineEdit01Value()
+void MachineConfigurationWindow::setupConfAndWindow()
 {
-    return ui->labelEdit->text();
-}
-
-void MachineConfigurationWindow::setLineEdit01Value(const QString& value)
-{
-    ui->labelEdit->setText(value);
-}
-
-QString MachineConfigurationWindow::getLineEdit02Value()
-{
-    return ui->CompPower_lineEdit->text();
-}
-
-void MachineConfigurationWindow::setLineEdit02Value(const QString& value)
-{
-    ui->CompPower_lineEdit->setText(value);
-}
-
-QString MachineConfigurationWindow::getLineEdit03Value()
-{
-    return ui->cores_lineEdit->text();
-}
-
-void MachineConfigurationWindow::setLineEdit03Value(const QString& value)
-{
-    ui->cores_lineEdit->setText(value);
-}
-
-QString MachineConfigurationWindow::getLineEdit04Value()
-{
-    return ui->energyconsumer_lineEdit->text();
-}
-
-void MachineConfigurationWindow::setLineEdit04Value(const QString& value)
-{
-    ui->energyconsumer_lineEdit->setText(value);
-}
+    this->setFixedHeight(700);
+    this->ui->nameEditLine->setText(this->conf->getName().c_str());
+    this->ui->coresSpinBox->setValue(this->conf->coreCount);
+    this->ui->computationPowerSpinBox->setValue(this->conf->computationalPower);
+    this->ui->loadFactorSpinBox->setValue(this->conf->loadFactor);
+    this->ui->gpuCoresSpinBox->setValue(this->conf->gpuCoreCount);
+    this->ui->gpuPower->setValue(this->conf->gpuPower);
+    this->ui->gpuBandwidth->setValue(this->conf->gpuInterconnectionBandwidth);
+    this->ui->ramSpinBox->setValue(this->conf->ram);
+    this->ui->diskSpinBox->setValue(this->conf->hardDisk);
+    this->ui->energyMaxSpinBox->setValue(this->conf->wattageMax);
+    this->ui->energyIdleSpinBox->setValue(this->conf->wattageIdle);
+    this->ui->masterCheckBox->setChecked(this->conf->master);
+    this->ui->schedulersComboBox->setCurrentText(this->conf->scheduler.c_str());
 
 
-QString MachineConfigurationWindow::getLineEdit05Value()
-{
-    return ui->lineEdit_4->text();
+    connect(this->ui->nameEditLine,
+            &QLineEdit::textChanged,
+            this,
+            &MachineConfigurationWindow::setName);
+    connect(this->ui->coresSpinBox,
+            qOverload<int>(&QSpinBox::valueChanged),
+            this,
+            &MachineConfigurationWindow::setCoreCount);
+    connect(this->ui->computationPowerSpinBox,
+            qOverload<int>(&QSpinBox::valueChanged),
+            this,
+            &MachineConfigurationWindow::setComputationPower);
+    connect(this->ui->loadFactorSpinBox,
+            qOverload<double>(&QDoubleSpinBox::valueChanged),
+            this,
+            &MachineConfigurationWindow::setLoadFactor);
+    connect(this->ui->gpuCoresSpinBox,
+            qOverload<int>(&QSpinBox::valueChanged),
+            this,
+            &MachineConfigurationWindow::setGpuCoreCount);
+    connect(this->ui->gpuPower,
+            qOverload<int>(&QSpinBox::valueChanged),
+            this,
+            &MachineConfigurationWindow::setGpuPower);
+    connect(this->ui->gpuBandwidth,
+            qOverload<int>(&QSpinBox::valueChanged),
+            this,
+            &MachineConfigurationWindow::setGpuBandwidth);
+    connect(this->ui->ramSpinBox,
+            qOverload<int>(&QSpinBox::valueChanged),
+            this,
+            &MachineConfigurationWindow::setRam);
+    connect(this->ui->diskSpinBox,
+            qOverload<int>(&QSpinBox::valueChanged),
+            this,
+            &MachineConfigurationWindow::setDisk);
+    connect(this->ui->masterCheckBox,
+            &QCheckBox::stateChanged,
+            this,
+            &MachineConfigurationWindow::checkMaster);
+    connect(this->ui->energyIdleSpinBox,
+            qOverload<int>(&QSpinBox::valueChanged),
+            this,
+            &MachineConfigurationWindow::setWattageIdle);
+    connect(this->ui->energyMaxSpinBox,
+            qOverload<int>(&QSpinBox::valueChanged),
+            this,
+            &MachineConfigurationWindow::setWattageMax);
+    connect(this->ui->schedulersComboBox,
+            &QComboBox::currentTextChanged,
+            this,
+            &MachineConfigurationWindow::setScheduler);
 }
 
-void MachineConfigurationWindow::setLineEdit05Value(const QString& value)
+void MachineConfigurationWindow::setRam(const int ram)
 {
-    ui->lineEdit_4->setText(value);
+    this->conf->ram = ram;
 }
 
-QString MachineConfigurationWindow::getLineEdit06Value()
+void MachineConfigurationWindow::setDisk(const int disk)
 {
-    return ui->loadFactor_lineEdit->text();
+    this->conf->hardDisk = disk;
 }
 
-void MachineConfigurationWindow::setLineEdit06Value(const QString& value)
+void MachineConfigurationWindow::setWattageIdle(const int wattageIdle)
 {
-    ui->loadFactor_lineEdit->setText(value);
+    this->conf->wattageIdle = wattageIdle;
 }
 
-QString MachineConfigurationWindow::getLineEdit07Value()
+void MachineConfigurationWindow::setWattageMax(const int wattageMax)
 {
-    return ui->primarystorage_lineEdit->text();
+    this->conf->wattageMax = wattageMax;
 }
 
-void MachineConfigurationWindow::setLineEdit07Value(const QString& value)
+void MachineConfigurationWindow::setScheduler(const QString scheduler)
 {
-    ui->primarystorage_lineEdit->setText(value);
+    this->conf->scheduler = scheduler.toStdString();
 }
 
-QString MachineConfigurationWindow::getLineEdit08Value()
+void MachineConfigurationWindow::setComputationPower(const int computationPower)
 {
-    return ui->secondaryStorage_lineEdit->text();
+    this->conf->computationalPower = computationPower;
 }
 
-void MachineConfigurationWindow::setLineEdit08Value(const QString& value)
+void MachineConfigurationWindow::setLoadFactor(const double loadFactor)
 {
-    ui->secondaryStorage_lineEdit->setText(value);
+    this->conf->loadFactor = loadFactor;
 }
 
-int MachineConfigurationWindow::getOwnerComboBoxIndex()
+void MachineConfigurationWindow::setCoreCount(const int coresCount)
 {
-    return ui->Owner_ComboBox->currentIndex();
+    this->conf->coreCount = coresCount;
 }
 
-void MachineConfigurationWindow::setOwnerComboBoxIndex(int index)
+void MachineConfigurationWindow::setGpuCoreCount(const int gpuCoreCount)
 {
-    ui->Owner_ComboBox->setCurrentIndex(index);
+    this->conf->gpuCoreCount = gpuCoreCount;
 }
 
-int MachineConfigurationWindow::getSchedulingComboBoxIndex()
+void MachineConfigurationWindow::setGpuBandwidth(const int gpuBandwidth)
 {
-    return ui->scheduling_comboBox->currentIndex();
+    this->conf->gpuInterconnectionBandwidth = gpuBandwidth;
 }
 
-void MachineConfigurationWindow::setSchedulingComboBoxIndex(int indexschedule)
+void MachineConfigurationWindow::setGpuPower(const int gpuPower)
 {
-    ui->scheduling_comboBox->setCurrentIndex(indexschedule);
+    this->conf->gpuPower = gpuPower;
 }
 
-bool MachineConfigurationWindow::getCheckBoxState()
+void MachineConfigurationWindow::checkMaster(const int checked)
 {
-    return ui->master_checkBox->isChecked();
+    if (checked == Qt::Checked) {
+        this->conf->master = true;
+    }
+    else {
+        this->conf->master = false;
+    }
 }
 
-void MachineConfigurationWindow::setCheckBoxState(bool checked)
+void MachineConfigurationWindow::setName(const QString &newName)
 {
-    ui->master_checkBox->setChecked(checked);
+    this->conf->setName(newName.toStdString());
 }
 
-void MachineConfigurationWindow::addUsersToOwnerComboBox(const QList<QString> &list1Data)
+void MachineConfigurationWindow::on_pushButton_clicked()
 {
-    ui->Owner_ComboBox->clear();
-    ui->Owner_ComboBox->addItems(list1Data);
+    QString slaves = ui->idPlainText->toPlainText();
+    QStringList slavelist = slaves.split(" ");
+
+    for (const QString& slave : slavelist) {
+        this->conf->slaves.push_back(slave.toInt());
+    }
+
+    this->close();
 }
 
-MachineConfigurationWindow::~MachineConfigurationWindow()
-{
-    delete ui;
-}

@@ -1,16 +1,20 @@
 #include "components/switch.h"
+#include "components/cloner/switchcloner.h"
 #include "components/conf/switchconfiguration.h"
+#include "components/connectable.h"
 #include "components/link.h"
 #include "components/schema.h"
 #include "icon/pixmapiconbuilder.h"
 #include "icon/pixmappair.h"
 #include "utils/iconPath.h"
+#include "window/switchconfigurationwindow.h"
 #include <memory>
 
-Switch::Switch(Schema *schema, SwitchConfiguration *conf)
-    : conf(conf), schema(schema), connectedLinks()
+Switch::Switch(Schema *schema, SwitchConfiguration const &conf)
+    : conf(std::make_unique<SwitchConfiguration>(conf)), schema(schema)
 {
     PixmapIconBuilder iconBuilder;
+    this->window = std::make_unique<SwitchConfigurationWindow>(this->conf.get());
     this->icon = std::unique_ptr<PixmapIcon>(
         iconBuilder.setOwner(this)
             ->setPixmapPair(PixmapPair(switchPath, switchPathSelected))
@@ -19,18 +23,19 @@ Switch::Switch(Schema *schema, SwitchConfiguration *conf)
 
 Switch::~Switch()
 {
-    for (auto [linkId, link] : this->connectedLinks) {
-        Connection *otherIcon = (link->connections.begin == this)
-                                    ? link->connections.end
-                                    : link->connections.begin;
+    for (auto const &link : this->connectedLinks) {
+        qDebug() << link.use_count();
+        auto otherConnectable =
+            link.get()->connections.getOtherConnectable(this);
 
-        otherIcon->removeConnectedLink(link);
-
-        this->schema->deleteLink(linkId);
+        otherConnectable->removeConnectedLink(link.get());
+        this->schema->links.erase(link.get()->getId());
     }
+
+    this->connectedLinks.clear();
 }
 
-std::map<unsigned, Link *> *Switch::getConnectedLinks()
+std::vector<std::shared_ptr<Link>> *Switch::getConnectedLinks()
 {
     return &this->connectedLinks;
 }
@@ -40,27 +45,20 @@ PixmapIcon *Switch::getIcon()
     return this->icon.get();
 }
 
-void Switch::setConnectedLinks(std::map<unsigned, Link *> *map)
+void Switch::setConnectedLinks(std::vector<std::shared_ptr<Link>> *map)
 {
     this->connectedLinks = *map;
 }
 
 void Switch::removeConnectedLink(Link *link)
 {
-    auto linkToRemove = this->connectedLinks.find(link->conf->getId());
-
-    if (linkToRemove != connectedLinks.end()) {
-        this->connectedLinks.erase(linkToRemove);
-    }
+    std::erase_if(this->connectedLinks,
+                  [link](auto iter) { return iter.get() == link; });
 }
 
-void Switch::addConnectedLink(Link *link)
+void Switch::addConnectedLink(std::shared_ptr<Link> link)
 {
-    auto linkToAdd = this->connectedLinks.find(link->conf->getId());
-
-    if (linkToAdd == connectedLinks.end()) {
-        this->connectedLinks.insert(std::pair(link->conf->getId(), link));
-    }
+    this->connectedLinks.push_back(link);
 }
 
 std::string Switch::getName()
@@ -69,9 +67,48 @@ std::string Switch::getName()
 }
 
 void Switch::showConfiguration()
-{}
+{
+    this->window->show();
+}
 
 SwitchConfiguration *Switch::getConf()
 {
     return this->conf.get();
+}
+
+std::unique_ptr<ConnectableCloner> Switch::cloner(SchemaCloner *parent)
+{
+    return std::make_unique<SwitchCloner>(this, parent);
+}
+
+std::unique_ptr<std::vector<std::string>> Switch::print()
+{
+    auto buffer  = std::string("[" + std::to_string(this->getId()) + "] = \"" +
+                              this->conf->getName() + "\"");
+    auto buffers = new std::vector<std::string>();
+    buffers->push_back(buffer);
+    for (auto &link : this->connectedLinks) {
+        buffers->push_back("|- [" + std::to_string(link->getId()) + "] = " +
+                           std::to_string(link->connections.begin->getId()) +
+                           " -> \"" + link->conf->getName() + "\" -> " +
+                           std::to_string(link->connections.end->getId()));
+    }
+
+    return std::unique_ptr<std::vector<std::string>>(buffers);
+}
+
+unsigned Switch::getId() const
+{
+    return this->id;
+}
+
+void Switch::setId(unsigned newId)
+{
+    this->id = newId;
+}
+
+void to_json(json &j, const Switch &s) {
+    json cJ = *s.conf.get();
+    cJ["id"] = s.getId();
+    j = cJ;
 }

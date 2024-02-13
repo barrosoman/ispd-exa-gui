@@ -5,6 +5,7 @@
 #include <QSettings>
 #include <QDialog>
 
+class MachineConfiguration;
 
 namespace Ui {
 class MachineConfigurationWindow;
@@ -14,44 +15,31 @@ class MachineConfigurationWindow : public QDialog
 {
     Q_OBJECT
 
+public slots:
+    void setName(const QString &newName);
+    void setCoreCount(const int coreCount);
+    void setComputationPower(const int computationPower);
+    void setLoadFactor(const double loadFactor);
+    void setGpuCoreCount(const int coreCount);
+    void setGpuPower(const int gpuPower);
+    void setGpuBandwidth(const int gpuBandwidth);
+    void setRam(const int ram);
+    void setDisk(const int disk);
+    void setWattageIdle(const int wattageIdle);
+    void setWattageMax(const int wattageMax);
+    void checkMaster(const int checked);
+    void setScheduler(const QString);
+
 public:
-    explicit MachineConfigurationWindow(const QString &iconName, QWidget *parent = nullptr);
-    ~MachineConfigurationWindow();
+    explicit MachineConfigurationWindow(MachineConfiguration *conf, QWidget *parent = nullptr);
 
-    // Adicione funções para obter e configurar os valores dos widgets da janela
-    QString getLineEdit01Value();
-    QString getLineEdit02Value();
-    QString getLineEdit03Value();
-    QString getLineEdit04Value();
-    QString getLineEdit05Value();
-    QString getLineEdit06Value();
-    QString getLineEdit07Value();
-    QString getLineEdit08Value();
+private slots:
+    void on_pushButton_clicked();
 
-    void setLineEdit01Value(const QString& value);
-    void setLineEdit02Value(const QString& value);
-    void setLineEdit03Value(const QString& value);
-    void setLineEdit04Value(const QString& value);
-    void setLineEdit05Value(const QString& value);
-    void setLineEdit06Value(const QString& value);
-    void setLineEdit07Value(const QString& value);
-    void setLineEdit08Value(const QString& value);
-
-    int getOwnerComboBoxIndex();
-    void setOwnerComboBoxIndex(int indexowner);
-
-    int getSchedulingComboBoxIndex();
-    void setSchedulingComboBoxIndex(int indexschedule);
-
-    bool getCheckBoxState();
-    void setCheckBoxState(bool checked);
-
-    void addUsersToOwnerComboBox(const QList<QString> &list1Data);
 private:
     Ui::MachineConfigurationWindow *ui;
-signals:
-    void configurationClicked();
-
+    MachineConfiguration *conf;
+    void setupConfAndWindow();
 };
 
 #endif // MACHINECONFIGURATION_H
