@@ -19,7 +19,7 @@
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <memory>
-#include <qt5/QtWidgets/qsizepolicy.h>
+#include <QSizePolicy>
 #include <window/addworkloadwindow.h>
 void printSchema(Schema *schema);
 
