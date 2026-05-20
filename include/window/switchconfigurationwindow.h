@@ -1,12 +1,8 @@
 #pragma once
+#include "components/switch.h"
 #include <QDialog>
-#include <QPlainTextEdit>
-#include <QSettings>
 
-class SwitchConfiguration;
-
-namespace Ui
-{
+namespace Ui {
 class SwitchConfigurationWindow;
 }
 
@@ -14,18 +10,17 @@ class SwitchConfigurationWindow : public QDialog
 {
     Q_OBJECT
 
-public slots:
-    void setName(const QString &newName);
-    void setBandwidth(int newBandwidth);
-    void setLoadFactor(const double newLoadFactor);
-    void setLatency(const double newLatency);
-
 public:
-    explicit SwitchConfigurationWindow(SwitchConfiguration *conf,
-                                     QWidget           *parent = nullptr);
+    explicit SwitchConfigurationWindow(SwitchConf* conf, QWidget* parent = nullptr);
+
+public slots:
+    void setName(const QString& newName);
+    void setBandwidth(int newBandwidth);
+    void setLoadFactor(double newLoadFactor);
+    void setLatency(double newLatency);
 
 private:
     void setupConfAndWindow();
-    Ui::SwitchConfigurationWindow *ui;
-    SwitchConfiguration           *conf;
+    Ui::SwitchConfigurationWindow* ui;
+    SwitchConf*                    conf;
 };

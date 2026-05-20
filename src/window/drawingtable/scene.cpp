@@ -1,297 +1,263 @@
 #include "window/drawingtable/scene.h"
-#include "components/cloner/connectablecloner.h"
-#include "components/cloner/machinecloner.h"
-#include "components/conf/machineconfiguration.h"
-#include "components/link.h"
-#include "components/schema.h"
-#include "components/switch.h"
 #include "icon/linkicon.h"
-#include "icon/pixmapicon.h"
-#include "qgraphicsitem.h"
-#include "qnamespace.h"
+#include "utils/iconPath.h"
 #include "window/drawingtable/drawingtable.h"
+#include "window/linkconfigurationwindow.h"
+#include "window/machineconfigurationwindow.h"
+#include "window/machinesetconfigurationwindow.h"
+#include "window/switchconfigurationwindow.h"
 #include <QDebug>
-#include <QGraphicsItem>
-#include <QGraphicsScene>
 #include <QGraphicsSceneMouseEvent>
-#include <QGraphicsView>
 #include <QKeyEvent>
-#include <QMouseEvent>
-#include <QPoint>
-#include <algorithm>
-#include <iostream>
-#include <memory>
-#include <string>
-#include <tuple>
+#include <QPen>
 
-///
-/// Create the scene following the QGraphicsScene constructor
-///
-Scene::Scene(DrawingTable *parent)
-    : QGraphicsScene{parent}, pickOp(NONE), table(parent)
+Scene::Scene(DrawingTable* parent)
+    : QGraphicsScene{parent}, table(parent)
 {
-    this->schema = this->table->schema;
-    this->lBegin = nullptr;
-    this->lEnd   = nullptr;
+    schema = table->schema;
     setSceneRect(0, 0, 2000, 2000);
     drawBackgroundLines();
 }
 
 QPointF Scene::getScenePosition()
 {
-    QGraphicsView const *view           = this->views().first();
-    QPoint               globalMousePos = QCursor::pos();
-    QPointF              sceneMousePos =
-        view->mapToScene(view->mapFromGlobal(globalMousePos));
-    return sceneMousePos;
+    QGraphicsView* view = this->views().first();
+    return view->mapToScene(view->mapFromGlobal(QCursor::pos()));
 }
 
-///
-/// @brief Add an Icon to the position specified.
-///
-/// @params icon an icon (Machine, Schema...)
-/// @params pos  the position to set the icon
-///
-void Scene::addIcon(PixmapIcon *icon, QPointF pos)
+void Scene::addIcon(PixmapIcon* icon, QPointF pos)
 {
     icon->setPos(pos);
-    this->addItem(icon);
+    addItem(icon);
+    nodeIcons[icon->node_id] = icon;
 }
 
-///
-/// @brief Add an Link to the position specified.
-///
-/// @params link an Link
-/// @params a    the Item that the Link comes from
-/// @params b    the Item that the Link goes to
-///
-void Scene::addLink(Link *link)
+void Scene::addLink(LinkIcon* licon)
 {
-    link->getIcon()->draw();
-
-    this->addItem(link->icon.get());
+    licon->draw();
+    addItem(licon);
+    linkIcons[licon->link_id] = licon;
 }
 
-void printThisSchema(Schema *schema)
+void Scene::onNodeMoved(unsigned id)
 {
-    qDebug() << "From Schema: " << schema->getConf()->getName().c_str();
-    for (auto &connectable : schema->connectables) {
-        qDebug() << "Machine[" << connectable.second->getId()
-                 << "] = " << connectable.second->getConf()->getName().c_str();
+    for (auto& [lid, licon] : linkIcons) {
+        auto* lconf = schema->findLink(lid);
+        if (lconf && (lconf->from_id == id || lconf->to_id == id))
+            licon->updatePosition();
     }
 }
 
-///
-/// @brief Handles a keyboard keypress.
-///
-/// @params event a keyboard event
-///
-void Scene::keyPressEvent(QKeyEvent *event)
+void Scene::onNodeDoubleClicked(unsigned id)
 {
-    switch (event->key()) {
-    case Qt::Key_Delete: {
-        this->deleteItems();
-        break;
+    if (!configWindows.count(id)) {
+        if (auto* m = schema->findMachine(id))
+            configWindows[id] = new MachineConfigurationWindow(m);
+        else if (auto* s = schema->findSwitch(id))
+            configWindows[id] = new SwitchConfigurationWindow(s);
+        else if (auto* ms = schema->findMachineSet(id))
+            configWindows[id] = new MachineSetConfigurationWindow(ms);
     }
-    case Qt::Key_C: {
-        auto newCloner = whichConnectable(getScenePosition())->cloner(nullptr);
-        schema->cloneContainer.get()->setCloner(std::move(newCloner));
-        break;
-    }
-    case Qt::Key_V: {
-        qDebug() << "Vamos ver se está clonando.";
+    if (configWindows.count(id))
+        configWindows[id]->show();
+}
 
-        if (this->schema->cloneContainer.get()->getCloner()) {
-            auto newConnectable =
-                this->schema->cloneContainer.get()->getCloner()->clone(
-                    this->schema);
-            this->addIcon(newConnectable->getIcon(), this->getScenePosition());
-            this->schema->connectables[newConnectable->getId()] =
-                std::move(newConnectable);
-        }
+void Scene::onLinkDoubleClicked(unsigned id)
+{
+    if (!linkConfigWindows.count(id)) {
+        if (auto* lconf = schema->findLink(id))
+            linkConfigWindows[id] = new LinkConfigurationWindow(lconf);
+    }
+    if (linkConfigWindows.count(id))
+        linkConfigWindows[id]->show();
+}
 
-        break;
-    }
-    default: {
-        break;
-    }
-    }
-
-    QGraphicsScene::keyPressEvent(event);
+unsigned Scene::whichNode(QPointF pos)
+{
+    for (auto& [id, icon] : nodeIcons)
+        if (icon->sceneBoundingRect().contains(pos))
+            return id;
+    return 0;
 }
 
 void Scene::deleteItems()
 {
-    auto eraseCondition = [](auto const &it) {
-        return it.second->getIcon()->isChosen();
-    };
+    std::vector<unsigned> nodesToRemove;
+    for (auto& [id, icon] : nodeIcons)
+        if (icon->isChosen()) nodesToRemove.push_back(id);
 
-    erase_if(this->schema->connectables, eraseCondition);
-
-    auto linkIter = this->schema->links.begin();
-    while (linkIter != this->schema->links.end()) {
-        auto temp = linkIter;
-        linkIter++;
-
-        auto link   = temp->second.get();
-        auto linkId = temp->first;
-        if (link->getIcon()->isChosen()) {
-            link->connections.begin->removeConnectedLink(link);
-            link->connections.end->removeConnectedLink(link);
-            this->schema->links.erase(linkId);
+    for (unsigned id : nodesToRemove) {
+        std::vector<unsigned> linkedLinks;
+        for (auto& [lid, licon] : linkIcons) {
+            auto* lconf = schema->findLink(lid);
+            if (lconf && (lconf->from_id == id || lconf->to_id == id))
+                linkedLinks.push_back(lid);
         }
+        for (unsigned lid : linkedLinks) {
+            removeItem(linkIcons[lid]);
+            delete linkIcons[lid];
+            linkIcons.erase(lid);
+            linkConfigWindows.erase(lid);
+        }
+        removeItem(nodeIcons[id]);
+        delete nodeIcons[id];
+        nodeIcons.erase(id);
+        configWindows.erase(id);
+        schema->removeNode(id);
     }
+
+    std::vector<unsigned> linksToRemove;
+    for (auto& [id, licon] : linkIcons)
+        if (licon->isChosen()) linksToRemove.push_back(id);
+
+    for (unsigned id : linksToRemove) {
+        auto it = linkIcons.find(id);
+        if (it == linkIcons.end()) continue;
+        removeItem(it->second);
+        delete it->second;
+        linkIcons.erase(it);
+        linkConfigWindows.erase(id);
+        schema->removeLink(id);
+    }
+
+    if (!nodeIcons.count(lBegin_id))
+        lBegin_id = 0;
 }
 
-QRectF getOwnItemsSceneBoundingRect(Schema *schema)
+void Scene::keyPressEvent(QKeyEvent* event)
 {
-    QRectF boundingRect;
+    switch (event->key()) {
+    case Qt::Key_Delete:
+        deleteItems();
+        break;
+    case Qt::Key_C:
+        clipboard_id = whichNode(getScenePosition());
+        break;
+    case Qt::Key_V: {
+        if (clipboard_id == 0) break;
+        QPointF pos = getScenePosition();
+        unsigned new_id = 0;
+        const char* path    = machinePath;
+        const char* pathSel = machinePathSelected;
 
-    for (auto &[id, machine] : schema->connectables)
-        boundingRect |= machine->getIcon()->sceneBoundingRect();
-    for (auto &[id, link] : schema->links)
-        boundingRect |=
-            static_cast<LinkIcon *>(link->getIcon())->sceneBoundingRect();
+        if (auto* m = schema->findMachine(clipboard_id)) {
+            MachineConf copy = *m;
+            new_id = schema->addMachine(copy.name);
+            auto* newM = schema->findMachine(new_id);
+            *newM = copy;
+            newM->id = new_id;
+            path = machinePath; pathSel = machinePathSelected;
+        } else if (auto* s = schema->findSwitch(clipboard_id)) {
+            SwitchConf copy = *s;
+            new_id = schema->addSwitch(copy.name);
+            auto* newS = schema->findSwitch(new_id);
+            *newS = copy;
+            newS->id = new_id;
+            path = switchPath; pathSel = switchPathSelected;
+        } else if (auto* ms = schema->findMachineSet(clipboard_id)) {
+            MachineSetConf copy = *ms;
+            new_id = schema->addMachineSet(copy.name);
+            auto* newMs = schema->findMachineSet(new_id);
+            *newMs = copy;
+            newMs->id = new_id;
+            path = setPath; pathSel = setPathSelected;
+        }
 
-    return boundingRect;
+        if (new_id != 0)
+            addIcon(new PixmapIcon(new_id, PixmapPair(path, pathSel)), pos);
+        break;
+    }
+    default:
+        break;
+    }
+    QGraphicsScene::keyPressEvent(event);
 }
 
-///
-/// @brief Handles the mouse press, adapting the behavior based on the actual
-///        state.
-///
-/// @params event a mouse press event
-///
-void Scene::mousePressEvent(QGraphicsSceneMouseEvent *event)
+void Scene::mousePressEvent(QGraphicsSceneMouseEvent* event)
 {
-    switch (this->pickOp) {
+    switch (pickOp) {
     case NONE: {
-        if (getOwnItemsSceneBoundingRect(this->schema)
-                .contains(event->scenePos())) {
+        QRectF allItems;
+        for (auto& [id, icon] : nodeIcons)  allItems |= icon->sceneBoundingRect();
+        for (auto& [id, licon] : linkIcons) allItems |= licon->sceneBoundingRect();
+        if (allItems.contains(event->scenePos()))
             QGraphicsScene::mousePressEvent(event);
-        }
-        else {
+        else
             selectionArea(event);
-        }
         return;
     }
     case PC: {
-        auto newMachine = this->table->addMachine();
-
-        this->addIcon(newMachine, event->scenePos());
-
+        auto* icon = table->addMachine();
+        addIcon(icon, event->scenePos());
         break;
     }
     case SET: {
-        auto newSet = this->table->addSet();
-        this->addIcon(newSet, event->scenePos());
-        if (newSet->getOwner()) {
-            break;
-        }
-        break;
-    }
-    case SCHEMA: {
-        auto newSchema = this->table->addSchema();
-        this->addIcon(newSchema, event->scenePos());
-        if (newSchema->getOwner()) {
-            break;
-        }
-        break;
-    }
-    case LINK: {
-        auto *connection = whichConnectable(event->scenePos());
-
-        if (!connection) {
-            return;
-        }
-
-        if (this->lBegin == nullptr) {
-            this->lBegin = connection;
-        }
-        else if (this->lEnd == nullptr) {
-
-            if (whichConnectable(event->scenePos()) == this->lBegin) {
-                break;
-            }
-            this->lEnd = connection;
-
-            Link *newLink =
-                this->table->addLink(LinkConnections{this->lBegin, this->lEnd});
-            this->addLink(newLink);
-
-            this->lBegin = nullptr;
-            this->lEnd   = nullptr;
-        }
+        auto* icon = table->addSet();
+        addIcon(icon, event->scenePos());
         break;
     }
     case SWITCH: {
-        auto newSwitch = this->table->addSwitch();
-
-        this->addIcon(newSwitch, event->scenePos());
-
+        auto* icon = table->addSwitch();
+        addIcon(icon, event->scenePos());
+        break;
+    }
+    case SCHEMA:
+        break;
+    case LINK: {
+        unsigned id = whichNode(event->scenePos());
+        if (id == 0) return;
+        if (lBegin_id == 0) {
+            lBegin_id = id;
+        } else {
+            if (id == lBegin_id) break;
+            auto beginIt = nodeIcons.find(lBegin_id);
+            auto endIt   = nodeIcons.find(id);
+            if (beginIt != nodeIcons.end() && endIt != nodeIcons.end()) {
+                unsigned link_id = table->addLink(lBegin_id, id);
+                addLink(new LinkIcon(link_id, beginIt->second, endIt->second));
+            }
+            lBegin_id = 0;
+        }
         break;
     }
     }
 }
 
-void Scene::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
+void Scene::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 {
-    if (this->startSelection != QPointF()) {
-        QRectF selectionAreaRect =
-            QRectF(this->startSelection, event->scenePos()).normalized();
-        this->selectionRect->setRect(selectionAreaRect);
-    }
+    if (startSelection != QPointF() && selectionRect)
+        selectionRect->setRect(QRectF(startSelection, event->scenePos()).normalized());
     QGraphicsScene::mouseMoveEvent(event);
 }
 
-void Scene::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
+void Scene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 {
-    if (event->button() == Qt::LeftButton &&
-        this->startSelection != QPointF()) {
-        // Calculate the selection area rectangle
-        QRectF selectionAreaRect =
-            QRectF(this->startSelection, event->scenePos()).normalized();
-
-        // Deselect all icons outside the selection area
-        for (auto &[id, machine] : this->schema->connectables) {
-            machine->getIcon()->toggleChosenIfInside(selectionAreaRect);
-        }
-        for (auto &[id, link] : this->schema->links) {
-            link->getIcon()->toggleChosenIfInside(selectionAreaRect);
-        }
-
-        // Reset the initial position for area selection
-        this->startSelection = QPointF();
-        delete this->selectionRect;
-        this->selectionRect = nullptr;
+    if (event->button() == Qt::LeftButton && startSelection != QPointF()) {
+        QRectF area = QRectF(startSelection, event->scenePos()).normalized();
+        for (auto& [id, icon]  : nodeIcons)  icon->toggleChosenIfInside(area);
+        for (auto& [id, licon] : linkIcons)  licon->toggleChosenIfInside(area);
+        startSelection = QPointF();
+        delete selectionRect;
+        selectionRect = nullptr;
     }
-
     QGraphicsScene::mouseReleaseEvent(event);
 }
 
-void Scene::selectionArea(QGraphicsSceneMouseEvent *event)
+void Scene::selectionArea(QGraphicsSceneMouseEvent* event)
 {
-    if (event->button() == Qt::LeftButton) {
-        this->startSelection = event->scenePos();
-        this->selectionRect  = new QGraphicsRectItem();
-        this->selectionRect->setPen(
-            QPen(Qt::blue, 1, Qt::SolidLine)); // Change color and pen style
-        this->selectionRect->setBrush(QBrush(QColor(100, 100, 255, 40)));
-        this->selectionRect->setRect(
-            QRectF(this->startSelection, event->scenePos()).normalized());
-        this->addItem(this->selectionRect); // Add the selection rectangle
-                                            // to the scene
-    }
+    if (event->button() != Qt::LeftButton) return;
+    startSelection = event->scenePos();
+    selectionRect  = new QGraphicsRectItem();
+    selectionRect->setPen(QPen(Qt::blue, 1, Qt::SolidLine));
+    selectionRect->setBrush(QBrush(QColor(100, 100, 255, 40)));
+    selectionRect->setRect(QRectF(startSelection, event->scenePos()).normalized());
+    addItem(selectionRect);
 }
 
-///
-/// @brief Draw lines at the background of the scene.
-///
 void Scene::drawBackgroundLines()
 {
-    auto rect = sceneRect();
-    QPen pen; // creates a default pen
-
+    QRectF rect = sceneRect();
+    QPen   pen;
     pen.setStyle(Qt::SolidLine);
     pen.setWidth(1);
     pen.setColor(QColor(211, 211, 211, 255));
@@ -299,35 +265,11 @@ void Scene::drawBackgroundLines()
     pen.setJoinStyle(Qt::RoundJoin);
 
     for (qreal i = 40; i <= rect.height(); i += 40) {
-        auto line = new QGraphicsLineItem(0, i, rect.width(), i);
-        line->setPen(pen);
-        line->setZValue(-2);
-        addItem(line);
+        auto* l = new QGraphicsLineItem(0, i, rect.width(), i);
+        l->setPen(pen); l->setZValue(-2); addItem(l);
     }
-
     for (qreal i = 40; i <= rect.width(); i += 40) {
-        auto line = new QGraphicsLineItem(i, 0, i, rect.height());
-        line->setPen(pen);
-        line->setZValue(-2);
-        addItem(line);
+        auto* l = new QGraphicsLineItem(i, 0, i, rect.height());
+        l->setPen(pen); l->setZValue(-2); addItem(l);
     }
-}
-
-///
-/// @brief  Finds the machine icon located at the specified position within
-///         the scene.
-///
-/// @param  pos The position in the scene to check for a machine icon.
-/// @return a pointer to the machine icon if found, or nullptr if not found.
-///
-Connectable *Scene::whichConnectable(QPointF pos)
-{
-    for (auto const &[connectableId, connectable] :
-         this->schema->connectables) {
-        if (connectable->getIcon()->sceneBoundingRect().contains(pos)) {
-            return connectable.get();
-        }
-    }
-
-    return nullptr;
 }

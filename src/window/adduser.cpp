@@ -2,7 +2,7 @@
 #include <qboxlayout.h>
 #include <QFormLayout>
 #include <qpushbutton.h>
-#include <qt5/QtWidgets/qlineedit.h>
+#include <qt/QtWidgets/qlineedit.h>
 #include <vector>
 
 AddUserWindow::AddUserWindow(std::vector<Context::User> *users, QWidget *parent) :

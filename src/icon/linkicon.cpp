@@ -1,42 +1,21 @@
 #include "icon/linkicon.h"
-#include "components/connectable.h"
-#include "components/link.h"
+#include "icon/pixmapicon.h"
+#include "window/drawingtable/scene.h"
 #include <QDebug>
 #include <QGraphicsDropShadowEffect>
-#include <QGraphicsEffect>
-#include <QGraphicsItem>
+#include <QGraphicsSceneMouseEvent>
 #include <QPainter>
-#include <QPen>
-#include <algorithm>
 #include <cmath>
-#include <memory>
 
-///
-/// Helper function to get the middle point of an icon
-///
-/// @param a a pointer to an Icon
-///
-/// @returns the point at the middle of the Icon
-///
-QPointF getMiddleOfIcon(PixmapIcon *a)
+static QPointF midOf(PixmapIcon* a)
 {
-    qreal y = (a->pos().y() + (static_cast<qreal>(a->pixmap().height()) / 2));
-    qreal x = (a->pos().x() + (static_cast<qreal>(a->pixmap().width()) / 2));
-
-    return QPointF(x, y);
+    return {a->pos().x() + a->pixmap().width()  / 2.0,
+            a->pos().y() + a->pixmap().height() / 2.0};
 }
 
-///
-///  @brief Default constructor for Link
-///
-///  @see Link
-///  @param owner  the Link that owns this icon.
-///
-LinkIcon::LinkIcon(Link *owner) : QGraphicsPolygonItem(), owner(owner)
-{
-    this->begin = this->owner->connections.begin->getIcon();
-    this->end   = this->owner->connections.end->getIcon();
-}
+LinkIcon::LinkIcon(unsigned link_id, PixmapIcon* begin, PixmapIcon* end)
+    : link_id(link_id), begin(begin), end(end)
+{}
 
 void LinkIcon::draw()
 {
@@ -44,100 +23,68 @@ void LinkIcon::draw()
     linkPen.setColor(QColor(9, 132, 227));
     linkPen.setCapStyle(Qt::RoundCap);
     linkPen.setJoinStyle(Qt::RoundJoin);
-    linkPen.setCosmetic(true); // Suaviza as bordas da linha
+    linkPen.setCosmetic(true);
 
-    auto shadowEffect = new QGraphicsDropShadowEffect();
-    shadowEffect->setColor(
-        QColor(0, 0, 0, 100));      // Cor e transparência da sombra
-    shadowEffect->setBlurRadius(4); // Raio do efeito de sombreamento
-    shadowEffect->setOffset(2); // Deslocamento da sombra em relação à linha
-    this->setGraphicsEffect(shadowEffect);
+    auto* shadow = new QGraphicsDropShadowEffect();
+    shadow->setColor(QColor(0, 0, 0, 100));
+    shadow->setBlurRadius(4);
+    shadow->setOffset(2);
+    setGraphicsEffect(shadow);
 
-    this->setPen(linkPen);
-
-    QPolygonF newLine;
-    newLine << getMiddleOfIcon(this->begin) << getMiddleOfIcon(this->end);
-
-    this->setPolygon(newLine);
-    this->setZValue(-1);
+    setPen(linkPen);
+    setPolygon(QPolygonF() << midOf(begin) << midOf(end));
+    setZValue(-1);
 }
 
-///
-/// @brief Update the position of the Link, suppose to be used when moving
-///        an Icon that the Link is connected.
-///
 void LinkIcon::updatePosition()
 {
-    QPolygonF newLine;
-
-    newLine << getMiddleOfIcon(this->begin) << getMiddleOfIcon(this->end);
-
-    this->setPolygon(newLine);
+    setPolygon(QPolygonF() << midOf(begin) << midOf(end));
 }
 
-void LinkIcon::paint(QPainter                       *painter,
-                     const QStyleOptionGraphicsItem *option,
-                     QWidget                        *widget)
-{
-    QGraphicsPolygonItem::paint(painter, option, widget);
-
-    QLineF line(getMiddleOfIcon(begin), getMiddleOfIcon(end));
-    QLineF norm = line.normalVector().unitVector();
-
-    qreal   arrowSize = 5;
-    qreal   angle     = std::atan2(-norm.dy(), norm.dx());
-    QPointF arrowP1   = line.p2() - QPointF(sin(angle - M_PI / 3) * arrowSize,
-                                          cos(angle - M_PI / 3) * arrowSize);
-    QPointF arrowP2   = line.p2() - QPointF(sin(angle + M_PI / 3) * arrowSize,
-                                          cos(angle + M_PI / 3) * arrowSize);
-
-    painter->setBrush(QColor(9, 132, 227));
-    painter->drawPolygon(QPolygonF() << line.p2() << arrowP1 << arrowP2);
-}
-
-void LinkIcon::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
-{
-    this->owner->showConfiguration();
-}
-
-void LinkIcon::mousePressEvent(QGraphicsSceneMouseEvent *event)
-{
-    qDebug() << "Nome: " << this->owner->conf.get()->getName().c_str();
-    qDebug() << "Bandwidth: " << this->owner->conf.get()->getBandwidth();
-    qDebug() << "Latency: " << this->owner->conf.get()->getLatency();
-    qDebug() << "Load Factor: " << this->owner->conf.get()->getloadFactor();
-    toggleChoosen(); // Call the select function to toggle the color
-    QGraphicsPolygonItem::mousePressEvent(event);
-}
-
-Link *LinkIcon::getOwner()
-{
-    return this->owner;
-}
 void LinkIcon::toggleChoosen()
 {
-    if (this->chose) {
-        QPen pen;
-        pen.setColor(QColor(9, 132, 227));
-        this->setPen(pen);
-    }
-    else {
-        QPen pen;
-        pen.setColor(QColor(245, 69, 55));
-        this->setPen(pen);
-    }
-
-    this->chose = !this->chose;
+    QPen pen;
+    pen.setColor(chose ? QColor(9, 132, 227) : QColor(245, 69, 55));
+    setPen(pen);
+    chose = !chose;
 }
 
-bool LinkIcon::isChosen()
-{
-    return this->chose;
-}
+bool LinkIcon::isChosen() { return chose; }
 
 void LinkIcon::toggleChosenIfInside(QRectF area)
 {
-    if (area.contains(this->sceneBoundingRect()) && !this->isChosen()) {
-        this->toggleChoosen();
-    }
+    if (area.contains(sceneBoundingRect()) && !chose)
+        toggleChoosen();
+}
+
+void LinkIcon::mousePressEvent(QGraphicsSceneMouseEvent* event)
+{
+    qDebug() << "Link id:" << link_id;
+    toggleChoosen();
+    QGraphicsPolygonItem::mousePressEvent(event);
+}
+
+void LinkIcon::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event)
+{
+    if (auto* s = dynamic_cast<Scene*>(scene()))
+        s->onLinkDoubleClicked(link_id);
+    QGraphicsPolygonItem::mouseDoubleClickEvent(event);
+}
+
+void LinkIcon::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget)
+{
+    QGraphicsPolygonItem::paint(painter, option, widget);
+
+    QLineF line(midOf(begin), midOf(end));
+    QLineF norm  = line.normalVector().unitVector();
+    qreal  size  = 5;
+    qreal  angle = std::atan2(-norm.dy(), norm.dx());
+
+    QPointF p1 = line.p2() - QPointF(std::sin(angle - M_PI / 3) * size,
+                                      std::cos(angle - M_PI / 3) * size);
+    QPointF p2 = line.p2() - QPointF(std::sin(angle + M_PI / 3) * size,
+                                      std::cos(angle + M_PI / 3) * size);
+
+    painter->setBrush(QColor(9, 132, 227));
+    painter->drawPolygon(QPolygonF() << line.p2() << p1 << p2);
 }

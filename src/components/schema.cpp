@@ -1,274 +1,143 @@
 #include "components/schema.h"
-#include "components/cloner/schemacloner.h"
-#include "components/conf/machineconfiguration.h"
-#include "components/conf/machinesetconfiguration.h"
-#include "components/conf/schemaconfiguration.h"
-#include "components/conf/switchconfiguration.h"
-#include "components/link.h"
-#include "components/machine.h"
-#include "components/machinebuilder.h"
-#include "components/machineset.h"
-#include "components/machinesetbuilder.h"
-#include "components/switch.h"
-#include "icon/pixmapiconbuilder.h"
-#include "utils/iconPath.h"
-#include "window/drawingtable/drawingtable.h"
-#include "window/drawingtable/scene.h"
-#include <QDebug>
-#include <memory>
+#include <algorithm>
 
-Schema::Schema()
+static std::string defaultName(std::string_view prefix, std::string_view given, unsigned id)
 {
-    this->window         = std::make_unique<SchemaWindow>(this);
-    this->ids            = new ComponentsIds;
-    this->cloneContainer = std::make_shared<ClonerContainer>();
-
-    auto [firstSchemaId, firstSchemaName] = this->ids->getNewSchemaBase();
-    this->id                              = firstSchemaId;
-    this->conf = std::make_unique<SchemaConfiguration>(firstSchemaName);
+    return given.empty() ? std::string(prefix) + std::to_string(id) : std::string(given);
 }
 
-Schema::Schema(Schema *parent, SchemaConfiguration const &conf)
-    : ids(parent->ids), cloneContainer(parent->cloneContainer),
-      conf(std::make_unique<SchemaConfiguration>(conf)), parent(parent)
+unsigned Schema::addMachine(std::string_view nodeName)
 {
-    this->window = std::make_unique<SchemaWindow>(this);
-
-    SwitchConfiguration outputConfiguration("");
-    this->outputSwitch = std::make_unique<Switch>(this, outputConfiguration);
-
-    PixmapIconBuilder iconBuilder;
-    this->icon = std::unique_ptr<PixmapIcon>(
-        iconBuilder.setOwner(this)
-            ->setPixmapPair(PixmapPair(schemaPath, schemaPathSelected))
-            ->build());
-
-    this->window->drawingTable->getScene()->addIcon(
-        this->outputSwitch->getIcon());
+    unsigned new_id = next_id++;
+    machines.push_back({.id = new_id, .name = defaultName("Machine", nodeName, new_id)});
+    return new_id;
 }
 
-Schema::~Schema()
+unsigned Schema::addSwitch(std::string_view nodeName)
 {
-    for (auto const &link : this->connectedLinks) {
-        qDebug() << link.use_count();
-        auto otherConnectable =
-            link.get()->connections.getOtherConnectable(this);
+    unsigned new_id = next_id++;
+    switches.push_back({.id = new_id, .name = defaultName("Switch", nodeName, new_id)});
+    return new_id;
+}
 
-        otherConnectable->removeConnectedLink(link.get());
-        this->parent->links.erase(link.get()->getId());
+unsigned Schema::addMachineSet(std::string_view nodeName)
+{
+    unsigned new_id = next_id++;
+    machineSets.push_back({.id = new_id, .name = defaultName("Set", nodeName, new_id)});
+    return new_id;
+}
+
+unsigned Schema::addLink(unsigned from_id, unsigned to_id, std::string_view linkName)
+{
+    unsigned new_id = next_id++;
+    links.push_back({
+        .id      = new_id,
+        .name    = defaultName("Link", linkName, new_id),
+        .from_id = from_id,
+        .to_id   = to_id,
+    });
+    return new_id;
+}
+
+MachineConf* Schema::findMachine(unsigned id)
+{
+    for (auto& m : machines)
+        if (m.id == id) return &m;
+    return nullptr;
+}
+
+SwitchConf* Schema::findSwitch(unsigned id)
+{
+    for (auto& s : switches)
+        if (s.id == id) return &s;
+    return nullptr;
+}
+
+MachineSetConf* Schema::findMachineSet(unsigned id)
+{
+    for (auto& ms : machineSets)
+        if (ms.id == id) return &ms;
+    return nullptr;
+}
+
+LinkConf* Schema::findLink(unsigned id)
+{
+    for (auto& l : links)
+        if (l.id == id) return &l;
+    return nullptr;
+}
+
+void Schema::removeNode(unsigned id)
+{
+    std::erase_if(machines,    [id](auto& m)  { return m.id == id; });
+    std::erase_if(switches,    [id](auto& s)  { return s.id == id; });
+    std::erase_if(machineSets, [id](auto& ms) { return ms.id == id; });
+    std::erase_if(links, [id](auto& l) {
+        return l.from_id == id || l.to_id == id;
+    });
+}
+
+void Schema::removeLink(unsigned id)
+{
+    std::erase_if(links, [id](auto& l) { return l.id == id; });
+}
+
+Schema clone_schema(const Schema& src, unsigned& next_id)
+{
+    Schema result;
+    result.id   = next_id++;
+    result.name = src.name;
+
+    std::map<unsigned, unsigned> id_map;
+
+    auto remap = [&](unsigned old_id) -> unsigned {
+        unsigned new_id    = next_id++;
+        id_map[old_id]     = new_id;
+        return new_id;
+    };
+
+    for (auto m : src.machines) {
+        m.id = remap(m.id);
+        result.machines.push_back(m);
     }
-}
-
-unsigned Schema::allocateNewSet()
-{
-    auto [newSetId, newSetName] = this->ids->getNewSetBase();
-
-    MachineSetConfiguration newSetConf(newSetName);
-    auto                    newSet =
-        ConnectableSetBuilder().setConf(newSetConf)->setSchema(this)->build();
-    newSet->setId(newSetId);
-
-    this->connectables[newSetId] = std::move(newSet);
-
-    return newSetId;
-}
-
-unsigned Schema::allocateNewMachine()
-{
-    auto [newMachineId, newMachineName] = this->ids->getNewMachineBase();
-
-    MachineConfiguration newMachineConf(newMachineName);
-    auto                 newMachine =
-        MachineBuilder().setConf(newMachineConf)->setSchema(this)->build();
-    newMachine->setId(newMachineId);
-
-    this->connectables[newMachineId] = std::move(newMachine);
-
-    return newMachineId;
-}
-
-unsigned Schema::allocateNewLink(LinkConnections connections)
-{
-    auto [newLinkId, newLinkName] = this->ids->getNewLinkBase();
-
-    LinkConfiguration newLinkConf(newLinkName);
-    auto newLink = std::make_shared<Link>(this, newLinkConf, connections);
-    newLink->setId(newLinkId);
-
-    auto [a, b] = connections;
-    a->addConnectedLink(newLink);
-    b->addConnectedLink(newLink);
-
-    this->links[newLinkId] = std::move(newLink);
-
-    return newLinkId;
-}
-
-unsigned Schema::allocateNewSchema()
-{
-    auto [newSchemaId, newSchemaName] = this->ids->getNewSchemaBase();
-
-    SchemaConfiguration newSchemaConf(newSchemaName);
-
-    auto newSchema = std::make_unique<Schema>(this, newSchemaConf);
-    newSchema->setId(newSchemaId);
-
-    this->connectables[newSchemaId] = std::move(newSchema);
-
-    return newSchemaId;
-}
-
-unsigned Schema::allocateNewSwitch()
-{
-    auto [newSwitchId, newSwitchName] = this->ids->getNewSwitchBase();
-
-    SwitchConfiguration newSwitchConf(newSwitchName);
-
-    auto newSwitch = std::make_unique<Switch>(this, newSwitchConf);
-    newSwitch->setId(newSwitchId);
-
-    this->connectables[newSwitchId] = std::move(newSwitch);
-
-    return newSwitchId;
-}
-
-void Schema::showConfiguration()
-{
-    this->window->show();
-}
-std::vector<std::shared_ptr<Link>> *Schema::getConnectedLinks()
-{
-    return &this->connectedLinks;
-}
-
-PixmapIcon *Schema::getIcon()
-{
-    return this->icon.get();
-}
-
-void Schema::setConnectedLinks(std::vector<std::shared_ptr<Link>> *map)
-{
-    this->connectedLinks = *map;
-}
-
-void Schema::removeConnectedLink(Link *link)
-{
-    qDebug() << "Removing link of " << this->conf->getName().c_str();
-
-    std::erase_if(this->connectedLinks,
-                  [link](auto iter) { return iter.get() == link; });
-}
-void Schema::addConnectedLink(std::shared_ptr<Link> link)
-{
-    qDebug() << "Adding link to " << this->conf->getName().c_str();
-
-    this->connectedLinks.push_back(link);
-}
-
-void Schema::drawItems()
-{
-    for (const auto &[connectableId, connectable] : this->connectables) {
-        this->window->drawingTable->getScene()->addIcon(
-            connectable->getIcon(), connectable->getIcon()->scenePos());
+    for (auto s : src.switches) {
+        s.id = remap(s.id);
+        result.switches.push_back(s);
     }
-    for (const auto &[linkId, link] : this->links) {
-        this->window->drawingTable->getScene()->addLink(link.get());
+    for (auto ms : src.machineSets) {
+        ms.id = remap(ms.id);
+        result.machineSets.push_back(ms);
     }
-}
-
-SchemaConfiguration *Schema::getConf()
-{
-    return this->conf.get();
-}
-
-std::unique_ptr<ConnectableCloner> Schema::cloner(SchemaCloner *parent)
-{
-    return std::make_unique<SchemaCloner>(this, parent);
-}
-
-std::unique_ptr<std::vector<std::string>> Schema::print()
-{
-    auto stringVector = new std::vector<std::string>();
-    stringVector->push_back(std::string("[" + std::to_string(this->getId()) +
-                                        "] = \"" + this->conf->getName() +
-                                        "\""));
-    for (auto &link : this->connectedLinks) {
-        stringVector->push_back(
-            "|- [" + std::to_string(link->getId()) +
-            "] = " + std::to_string(link->connections.begin->getId()) +
-            " -> \"" + link->conf->getName() + "\" -> " +
-            std::to_string(link->connections.end->getId()));
-    }
-    for (auto &[id, connectable] : this->connectables) {
-        auto connectableStrings = connectable->print();
-        for (auto buffer : *connectableStrings.get()) {
-            stringVector->push_back("|- " + buffer);
-        }
+    for (auto l : src.links) {
+        l.id      = next_id++;
+        l.from_id = id_map[l.from_id];
+        l.to_id   = id_map[l.to_id];
+        result.links.push_back(l);
     }
 
-    return std::unique_ptr<std::vector<std::string>>(stringVector);
+    result.output_id = id_map.count(src.output_id) ? id_map[src.output_id] : 0;
+    return result;
 }
 
-void Schema::print_as_root()
-{
-    auto buffers = this->print();
-
-    for (auto const &buffer : *buffers.get()) {
-        qDebug() << buffer.c_str();
-    }
-}
-
-unsigned Schema::getId() const
-{
-    return this->id;
-}
-
-void Schema::setId(unsigned newId)
-{
-    this->id = newId;
-}
-unsigned Schema::getMasterId()
-{
-    for (auto &i : connectables)
-    {
-        if (auto machine = dynamic_cast<Machine *>(i.second.get());
-            machine != nullptr){
-            if(machine->conf->master)
-                return machine->getId();
-
-        }
-    }
-}
-
-void to_json(json &j, const Schema &s)
+void to_json(json& j, const Schema& s)
 {
     j["users"]     = json::array();
     j["workloads"] = json::array();
-    j["services"]  = {{"machines", json::array()},
-                      {"masters", json::array()},
-                      {"links", json::array()},
-                      {"switches", json::array()}};
-    for (auto &i : s.connectables) {
-        if (auto machine = dynamic_cast<Machine *>(i.second.get());
-            machine != nullptr) {
-            if (machine->conf->master) {
-                j["services"]["masters"].push_back(*machine);
-            }
-            else {
-                j["services"]["machines"].push_back(*machine);
-            }
-        }
-        else if (auto switchC = dynamic_cast<Switch *>(i.second.get());
-                 switchC != nullptr) {
-            j["services"]["switches"].push_back(*switchC);
-        }
-        /* } else if (auto schema = static_cast<Schema*>(i.second.get()) !=
-         * nullptr) { */
-        /*     j["services"]["machines"].push_back(); */
-        /* } */
-    }
+    j["services"]  = {
+        {"machines", json::array()},
+        {"masters",  json::array()},
+        {"links",    json::array()},
+        {"switches", json::array()},
+    };
 
-    for (auto &i : s.links) {
-        j["services"]["links"].push_back(*i.second.get());
+    for (const auto& m : s.machines) {
+        if (m.master)
+            j["services"]["masters"].push_back(m);
+        else
+            j["services"]["machines"].push_back(m);
     }
+    for (const auto& sw : s.switches)
+        j["services"]["switches"].push_back(sw);
+    for (const auto& l : s.links)
+        j["services"]["links"].push_back(l);
 }

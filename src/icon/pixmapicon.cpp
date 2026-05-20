@@ -1,91 +1,61 @@
 #include "icon/pixmapicon.h"
-#include "components/conf/itemconfiguration.h"
-#include "components/connectable.h"
-#include "components/link.h"
-#include "icon/linkicon.h"
-#include <QGraphicsItem>
+#include "window/drawingtable/scene.h"
 #include <QDebug>
+#include <QGraphicsItem>
+#include <QGraphicsSceneMouseEvent>
 
-PixmapIcon::PixmapIcon(Connectable *owner, PixmapPair pixmapPair)
-    : owner(owner), pixmapPair(pixmapPair)
+PixmapIcon::PixmapIcon(unsigned node_id, PixmapPair pixmapPair)
+    : node_id(node_id), pixmapPair(pixmapPair)
 {
-    this->setFlags(QGraphicsItem::ItemIsMovable);
-    this->setPixmap(this->pixmapPair.getNormal());
-    this->owner = owner;
-}
-
-Component *PixmapIcon::getOwner()
-{
-    return owner;
+    setFlags(QGraphicsItem::ItemIsMovable);
+    setPixmap(this->pixmapPair.getNormal());
 }
 
 void PixmapIcon::toggleChoosen()
 {
-    if (!this->chose) {
-        this->setPixmap(this->pixmapPair.getSelected());
-    }
-    else {
-        this->setPixmap(this->pixmapPair.getNormal());
-    }
-
-    this->chose = !this->chose;
+    setPixmap(chose ? pixmapPair.getNormal() : pixmapPair.getSelected());
+    chose = !chose;
 }
 
-void PixmapIcon::mousePressEvent(QGraphicsSceneMouseEvent *event)
+bool PixmapIcon::isChosen() { return chose; }
+
+void PixmapIcon::toggleChosenIfInside(QRectF area)
 {
-    qDebug() << "Owner: " << owner->getId();
-    qDebug() << "|-Connected Links: ";
-
-    for (auto const &link : *owner->getConnectedLinks()) {
-        qDebug() << "FIND ONE?";
-        // qDebug() << "  |-Name: " << link->getConf()->getName().c_str();
-    }
-
-    QGraphicsPixmapItem::mousePressEvent(event);
-}
-
-void PixmapIcon::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
-{
-    this->clickTimer.start();
-    this->owner->showConfiguration();
-    qDebug() << this->owner->getConf()->getName().c_str();
-
-    QGraphicsPixmapItem::mouseDoubleClickEvent(event);
-}
-
-void PixmapIcon::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
-{
-    this->clickTimer.setInterval(CLICK_DURATION);
-    QGraphicsPixmapItem::mouseMoveEvent(event);
-    this->updatePosition();
-}
-
-void PixmapIcon::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
-{
-    this->clickTimer.stop();
-    if (this->clickTimer.interval() < CLICK_DURATION) {
-        this->toggleChoosen();
-    }
-    this->clickTimer.setInterval(0);
-
-    QGraphicsPixmapItem::mouseReleaseEvent(event);
+    if (area.contains(sceneBoundingRect()) && !chose)
+        toggleChoosen();
 }
 
 void PixmapIcon::updatePosition()
 {
-    for (auto &link : *this->owner->getConnectedLinks()) {
-        link->getIcon()->updatePosition();
-    }
+    if (auto* s = dynamic_cast<Scene*>(scene()))
+        s->onNodeMoved(node_id);
 }
 
-bool PixmapIcon::isChosen()
+void PixmapIcon::mousePressEvent(QGraphicsSceneMouseEvent* event)
 {
-    return this->chose;
+    qDebug() << "Node id:" << node_id;
+    QGraphicsPixmapItem::mousePressEvent(event);
 }
 
-void PixmapIcon::toggleChosenIfInside(QRectF area)
+void PixmapIcon::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event)
 {
-    if (area.contains(this->sceneBoundingRect()) && !this->isChosen()) {
-        this->toggleChoosen();
-    }
+    if (auto* s = dynamic_cast<Scene*>(scene()))
+        s->onNodeDoubleClicked(node_id);
+    QGraphicsPixmapItem::mouseDoubleClickEvent(event);
+}
+
+void PixmapIcon::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
+{
+    clickTimer.setInterval(CLICK_DURATION);
+    QGraphicsPixmapItem::mouseMoveEvent(event);
+    updatePosition();
+}
+
+void PixmapIcon::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
+{
+    clickTimer.stop();
+    if (clickTimer.interval() < CLICK_DURATION)
+        toggleChoosen();
+    clickTimer.setInterval(0);
+    QGraphicsPixmapItem::mouseReleaseEvent(event);
 }

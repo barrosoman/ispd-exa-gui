@@ -1,10 +1,11 @@
 #include "window/drawingtable/drawingtable.h"
-#include "components/connectable.h"
 #include "components/link.h"
 #include "components/machine.h"
 #include "components/schema.h"
 #include "components/switch.h"
 #include "context/user.h"
+#include "icon/pixmapicon.h"
+#include "utils/iconPath.h"
 #include <fstream>
 
 #include "utils/iconSize.h"
@@ -18,20 +19,17 @@
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <memory>
-#include <qt5/QtWidgets/qsizepolicy.h>
+#include <qt/QtWidgets/qsizepolicy.h>
 #include <window/addworkloadwindow.h>
 void printSchema(Schema *schema);
 
 DrawingTable::DrawingTable(QFrame *parent) : DrawingTable(new Schema(), parent)
 {
     mainContext.mainSchema = std::shared_ptr<Schema>(this->schema);
-    int id = mainContext.mainSchema->allocateNewMachine();
-    auto machine = &mainContext.mainSchema->connectables[id];
 
     //-------------------------------------------------------------------------
     // TEMPORARY
     mainContext.users.push_back(Context::User{.name="John", .allowedUsage=0.9});
-//   mainContext.workloads.push_back(Context::Workload{.owner=std::make_shared<Context::User>(mainContext.users[0]), .master=static_cast<Machine *>(machine->get())});
 
     //-------------------------------------------------------------------------
 
@@ -107,13 +105,6 @@ DrawingTable::DrawingTable(Schema *schema, QWidget *parent) : QWidget{parent}
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(buttonsRow);
     mainLayout->addWidget(view);
-}
-
-void DrawingTable::receiveUserWindowData(const QList<QString> &list1Data,
-                                         const QList<double>  &list2Data)
-{
-    /* this->list1Data = list1Data; */
-    /* this->list2Data = list2Data; */
 }
 
 ///
@@ -213,9 +204,8 @@ void DrawingTable::setupLinkButton()
 ///
 PixmapIcon *DrawingTable::addMachine()
 {
-    const unsigned machineId = schema->allocateNewMachine();
-
-    return schema->connectables.at(machineId)->getIcon();
+    const unsigned id = schema->addMachine();
+    return new PixmapIcon(id, PixmapPair(machinePath, machinePathSelected));
 }
 
 ///
@@ -225,52 +215,22 @@ PixmapIcon *DrawingTable::addMachine()
 ///
 PixmapIcon *DrawingTable::addSwitch()
 {
-    const unsigned switchId = schema->allocateNewSwitch();
-
-    // FOR DEBUG
-    printSchema(schema);
-
-    return schema->connectables.at(switchId)->getIcon();
-}
-
-///
-/// @brief  Creates a Schema inside the DrawingTable's Schema
-///
-/// @return the schema's icon
-///
-PixmapIcon *DrawingTable::addSchema()
-{
-    const unsigned schemaId = schema->allocateNewSchema();
-
-    // FOR DEBUG
-    printSchema(schema);
-
-    return schema->connectables.at(schemaId)->getIcon();
+    const unsigned id = schema->addSwitch();
+    return new PixmapIcon(id, PixmapPair(switchPath, switchPathSelected));
 }
 
 PixmapIcon *DrawingTable::addSet()
 {
-    const unsigned schemaId = schema->allocateNewSet();
-
-    // FOR DEBUG
-    printSchema(schema);
-
-    return schema->connectables.at(schemaId)->getIcon();
+    const unsigned id = schema->addMachineSet();
+    return new PixmapIcon(id, PixmapPair(setPath, setPathSelected));
 }
 
 ///
 /// @brief  Creates a Link inside the DrawingTable's Schema
 ///
-/// @return the link's line
-///
-Link *DrawingTable::addLink(LinkConnections connections)
+unsigned DrawingTable::addLink(unsigned from_id, unsigned to_id)
 {
-    const unsigned linkId = schema->allocateNewLink(connections);
-
-    // FOR DEBUG
-    printSchema(schema);
-
-    return schema->links.at(linkId).get();
+    return schema->addLink(from_id, to_id);
 }
 
 ///
@@ -323,34 +283,14 @@ void DrawingTable::schemaButtonClicked()
 ///
 void printSchema(Schema *schema)
 {
-    for (auto machine = schema->connectables.begin();
-         machine != schema->connectables.end();
-         machine++) {
-
-        qDebug() << "Connectable #" << machine->second->getId() << ": "
-                 << machine->second->getConf()->getName().c_str();
-    }
-
-    for (auto &[id, nswitch] : schema->connectables) {
-
-        qDebug() << "Connectable #" << id << ": "
-                 << nswitch->getConf()->getName().c_str();
-    }
-
-    for (auto sch = schema->connectables.begin();
-         sch != schema->connectables.end();
-         sch++) {
-
-        qDebug() << "Connectable #" << sch->second->getId() << ": "
-                 << sch->second->getConf()->getName().c_str();
-    }
-
-    for (auto link = schema->links.begin(); link != schema->links.end();
-         link++) {
-
-        qDebug() << "Link #" << link->second->getId() << ": "
-                 << link->second->conf->getName().c_str();
-    }
+    for (const auto& m : schema->machines)
+        qDebug() << "Machine #" << m.id << ": " << m.name.c_str();
+    for (const auto& s : schema->switches)
+        qDebug() << "Switch #" << s.id << ": " << s.name.c_str();
+    for (const auto& ms : schema->machineSets)
+        qDebug() << "MachineSet #" << ms.id << ": " << ms.name.c_str();
+    for (const auto& l : schema->links)
+        qDebug() << "Link #" << l.id << ": " << l.name.c_str();
 }
 void DrawingTable::openUserWindowClicked()
 {
@@ -362,7 +302,12 @@ void DrawingTable::openUserWindowClicked()
 void DrawingTable::openSimulationWindowClicked()
 {
     /// temporary must be removed when simulation allows more than one workload
-    this->mainContext.workloads.at(0).master_id = this->schema->getMasterId();
+    for (const auto& m : this->schema->machines) {
+        if (m.master) {
+            this->mainContext.workloads.at(0).master_id = m.id;
+            break;
+        }
+    }
 
 
     json j     = *this->schema;
@@ -394,10 +339,10 @@ void DrawingTable::openSimulationWindowClicked()
 
     QTextStream outStream(&file);
 
-    for (const auto &link : this->schema->links) {
-        outStream << link.second->connections.begin->getId() << " ";
-        outStream << link.second->getId() << " ";
-        outStream << link.second->connections.end->getId() << "\n";
+    for (const auto& link : this->schema->links) {
+        outStream << link.from_id << " ";
+        outStream << link.id << " ";
+        outStream << link.to_id << "\n";
     }
 
     file.close();
@@ -405,13 +350,6 @@ void DrawingTable::openSimulationWindowClicked()
     /* simulationWindow->show(); */
 }
 
-void DrawingTable::addIcons(std::vector<Connectable *> *items)
-{
-    for (auto it : *items) {
-        this->scene->addIcon(static_cast<PixmapIcon *>(it->getIcon()),
-                             static_cast<PixmapIcon *>(it->getIcon())->pos());
-    }
-}
 
 void DrawingTable::openWorkloadWindow()
 {

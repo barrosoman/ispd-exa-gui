@@ -1,56 +1,22 @@
 #include "components/link.h"
-#include "components/cloner/linkcloner.h"
-#include "components/connectable.h"
-#include "icon/linkicon.h"
-#include "window/linkconfigurationwindow.h"
-#include <iterator>
-#include <memory>
 
-Link::Link(Schema *schema, LinkConfiguration conf, LinkConnections connections)
-    : schema(schema), connections(connections)
+void to_json(json& j, const LinkConf& l)
 {
-    this->conf = std::make_unique<LinkConfiguration>(conf);
-    this->icon = std::make_unique<LinkIcon>(this);
-    this->window = std::make_unique<LinkConfigurationWindow>(this->conf.get());
+    j = json{
+        {"id",        l.id},
+        {"name",      l.name},
+        {"from",      l.from_id},
+        {"to",        l.to_id},
+        {"bandwidth", l.bandwidth},
+        {"load",      l.loadFactor},
+        {"latency",   l.latency},
+    };
 }
 
-Link::~Link() = default;
-
-void Link::showConfiguration()
+void from_json(const json& j, LinkConf& l)
 {
-    this->window->show();
-}
-
-LinkIcon *Link::getIcon()
-{
-    return this->icon.get();
-}
-
-LinkConfiguration *Link::getConf()
-{
-    return this->conf.get();
-}
-
-std::unique_ptr<LinkCloner> Link::cloner(SchemaCloner *parent)
-{
-    return std::make_unique<LinkCloner>(this, parent);
-}
-
-unsigned Link::getId() const
-{
-    return this->id;
-}
-
-void Link::setId(unsigned newId)
-{
-    this->id = newId;
-}
-
-void to_json(json& j, const Link& l) {
-    j["id"] = l.getId();
-    j["from"] = l.connections.begin->getId();
-    j["to"] = l.connections.end->getId();
-    j.update(*l.conf.get());
-}
-void from_json(const json& j, Link& m) {
+    j.at("id").get_to(l.id);
+    j.at("name").get_to(l.name);
+    j.at("from").get_to(l.from_id);
+    j.at("to").get_to(l.to_id);
 }

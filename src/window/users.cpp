@@ -4,7 +4,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include <qboxlayout.h>
-#include <qt5/QtWidgets/qpushbutton.h>
+#include <qt/QtWidgets/qpushbutton.h>
 #include <qtablewidget.h>
 #include <ui_userwindow.h>
 

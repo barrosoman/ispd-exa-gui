@@ -1,12 +1,8 @@
 #pragma once
+#include "components/link.h"
 #include <QDialog>
-#include <QPlainTextEdit>
-#include <QSettings>
 
-class LinkConfiguration;
-
-namespace Ui
-{
+namespace Ui {
 class LinkConfigurationWindow;
 }
 
@@ -14,18 +10,17 @@ class LinkConfigurationWindow : public QDialog
 {
     Q_OBJECT
 
-public slots:
-    void setName(const QString &newName);
-    void setBandwidth(int newBandwidth);
-    void setLoadFactor(const double newLoadFactor);
-    void setLatency(const double newLatency);
-
 public:
-    explicit LinkConfigurationWindow(LinkConfiguration *conf,
-                                     QWidget           *parent = nullptr);
+    explicit LinkConfigurationWindow(LinkConf* conf, QWidget* parent = nullptr);
+
+public slots:
+    void setName(const QString& newName);
+    void setBandwidth(int newBandwidth);
+    void setLoadFactor(double newLoadFactor);
+    void setLatency(double newLatency);
 
 private:
     void setupConfAndWindow();
-    Ui::LinkConfigurationWindow *ui;
-    LinkConfiguration           *conf;
+    Ui::LinkConfigurationWindow* ui;
+    LinkConf*                    conf;
 };

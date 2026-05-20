@@ -1,30 +1,17 @@
 #include "window/machinesetconfigurationwindow.h"
-#include "components/conf/machinesetconfiguration.h"
 #include "ui_machinesetconfigurationwindow.h"
-#include <QSettings>
 #include <QDialog>
-#include <qlineedit.h>
-#include <qspinbox.h>
+#include <QLineEdit>
+#include <QSpinBox>
 
-
-MachineSetConfigurationWindow::MachineSetConfigurationWindow(MachineSetConfiguration *conf, QWidget *parent) :
-      QDialog(parent),
-      ui(new Ui::MachineSetConfigurationWindow), conf(conf)
+MachineSetConfigurationWindow::MachineSetConfigurationWindow(MachineSetConf* conf, QWidget* parent)
+    : QDialog(parent), ui(new Ui::MachineSetConfigurationWindow), conf(conf)
 {
     this->ui->setupUi(this);
-
-    this->ui->nameEditLine->setText(QString(this->conf->getName().c_str()));
+    this->ui->nameEditLine->setText(conf->name.c_str());
 }
 
-void MachineSetConfigurationWindow::setName(const QString &newName) {
-    this->conf->setName(newName.toStdString());
-}
-void MachineSetConfigurationWindow::setBandwidth(int newBandwidth) {
-    this->conf->setBandwidth(newBandwidth);
-}
-void MachineSetConfigurationWindow::setLoadFactor(const double newLoadFactor) {
-    this->conf->setloadFactor(newLoadFactor);
-}
-void MachineSetConfigurationWindow::setLatency(const double newLatency) {
-    this->conf->setLatency(newLatency);
-}
+void MachineSetConfigurationWindow::setName(const QString& newName) { conf->name      = newName.toStdString(); }
+void MachineSetConfigurationWindow::setBandwidth(int v)             { conf->bandwidth  = v; }
+void MachineSetConfigurationWindow::setLoadFactor(double v)         { conf->loadFactor = v; }
+void MachineSetConfigurationWindow::setLatency(double v)            { conf->latency    = v; }

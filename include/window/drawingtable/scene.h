@@ -1,67 +1,61 @@
-#ifndef SCENE_H
-#define SCENE_H
-
-#include "components/cloner/connectablecloner.h"
-#include "components/cloner/machinecloner.h"
-#include "components/machine.h"
-#include "qglobal.h"
-#include "window/users.h"
+#pragma once
+#include "components/schema.h"
+#include "icon/pixmapicon.h"
 #include <QGraphicsScene>
+#include <QGraphicsRectItem>
 #include <QWidget>
-
-typedef enum PICK_OP
-{
-    NONE,
-    PC,
-    SCHEMA,
-    LINK,
-    SWITCH,
-    SET,
-} PICK_OP;
+#include <map>
 
 class LinkIcon;
 class DrawingTable;
 
+enum PICK_OP { NONE, PC, SCHEMA, LINK, SWITCH, SET };
+
 class Scene : public QGraphicsScene
 {
-
     Q_OBJECT
 
-protected:
-    void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
-    void keyPressEvent(QKeyEvent *event) override;
-    void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
-    void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
-
 public:
-    Scene(DrawingTable *parent);
-    QVector<LinkIcon *> *links;
+    Scene(DrawingTable* parent);
 
-    void addIcon(PixmapIcon *icon, QPointF pos = QPointF(0, 0));
+    PICK_OP pickOp = NONE;
+
+    std::map<unsigned, PixmapIcon*> nodeIcons;
+    std::map<unsigned, LinkIcon*>   linkIcons;
+
+    void addIcon(PixmapIcon* icon, QPointF pos = QPointF(0, 0));
+    void addLink(LinkIcon* licon);
     void drawBackgroundLines();
 
-    PICK_OP pickOp;
+    void onNodeMoved(unsigned id);
+    void onNodeDoubleClicked(unsigned id);
+    void onLinkDoubleClicked(unsigned id);
 
-    QLabel *machineDescriptionLabel;
-    void                    addLink(Link *link);
+    unsigned whichNode(QPointF pos);
 
-private:
-    QPointF                 getScenePosition();
-    DrawingTable           *table;
-    Schema                 *schema;
-    Connectable            *lBegin;
-    Connectable            *lEnd;
-    Connectable            *whichConnectable(QPointF pos);
-    void                    removeLink(Link *link);
-    void                    deleteItems();
-    UserWindow             *userWindow;
-    QPointF                 startSelection;
-    QGraphicsRectItem      *selectionRect;
-    std::unique_ptr<ConnectableCloner> sceneCloner;
+protected:
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
 
-    void selectionArea(QGraphicsSceneMouseEvent *event);
 signals:
     void clicked(QPointF position);
-};
 
-#endif
+private:
+    QPointF      getScenePosition();
+    void         deleteItems();
+    void         selectionArea(QGraphicsSceneMouseEvent* event);
+
+    DrawingTable*    table;
+    Schema*          schema;
+
+    unsigned         lBegin_id    = 0;
+    unsigned         clipboard_id = 0;
+
+    std::map<unsigned, QWidget*> configWindows;
+    std::map<unsigned, QWidget*> linkConfigWindows;
+
+    QPointF            startSelection;
+    QGraphicsRectItem* selectionRect = nullptr;
+};

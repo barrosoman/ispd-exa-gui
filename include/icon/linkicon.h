@@ -1,49 +1,31 @@
-#ifndef LINK_H
-#define LINK_H
-
-#include "components/link.h"
-#include "icon/pixmapicon.h"
+#pragma once
 #include <QGraphicsPolygonItem>
 #include <QPen>
-#include <memory>
-#include <optional>
 
-///
-/// @brief A class for creating a link between machines/clusters
-///
-/// It should have two \link Icon \endlink connected to itself, and obeys
-/// their behavior; it moves when they move, for example.
-///
-/// @see Icon
+class PixmapIcon;
+class Scene;
+
 class LinkIcon : public QGraphicsPolygonItem
 {
 public:
-    explicit LinkIcon(Link *owner);
+    LinkIcon(unsigned link_id, PixmapIcon* begin, PixmapIcon* end);
 
-    Link       *owner;
-    PixmapIcon *begin; ///< the \link Icon \endlink that the link comes from
-    PixmapIcon *end;   ///< the \link Icon \endlink that the link goes to
-    void        mousePressEvent(QGraphicsSceneMouseEvent *event) override;
-    void        toggleChosenIfInside(QRectF area);
-    void        updatePosition();
-    void        draw();
-    Link       *getOwner();
-    void        toggleChoosen();
-    bool        isChosen();
+    unsigned    link_id;
+    PixmapIcon* begin;
+    PixmapIcon* end;
+
+    void draw();
+    void updatePosition();
+    void toggleChoosen();
+    void toggleChosenIfInside(QRectF area);
+    bool isChosen();
 
 protected:
-    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
-    void updateArrow();
-    void paint(QPainter                       *painter,
-               const QStyleOptionGraphicsItem *option,
-               QWidget                        *widget) override;
-
-    void select();
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
+    void paint(QPainter*, const QStyleOptionGraphicsItem*, QWidget*) override;
 
 private:
-    QGraphicsPolygonItem *arrow;
-    QPen                  linkPen;
-    bool                  chose = false;
+    QPen linkPen;
+    bool chose = false;
 };
-
-#endif

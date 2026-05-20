@@ -5,7 +5,6 @@
 #include <QApplication>
 #include <QScreen>
 #include "components/schema.h"
-#include "components/conf/machineconfiguration.h"
 
 int main(int argc, char **argv)
 {

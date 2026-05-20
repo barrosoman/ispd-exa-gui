@@ -1,61 +1,32 @@
 #pragma once
-
-#include <memory>
+#include "nlohmann/json.hpp"
 #include <string>
 #include <vector>
 
-#include "components/connectable.h"
-#include "nlohmann/json.hpp"
-#include "window/machineconfigurationwindow.h"
-
-class Schema;
-class SchemaCloner;
-class Link;
-class Icon;
-class Cloner;
-class ItemConfiguration;
-class MachineConfiguration;
-
-class Machine : public Connectable
-{
-public:
-    Machine(Schema *schema, MachineConfiguration *conf);
-    ~Machine();
-
-    std::vector<std::shared_ptr<Link>> *getConnectedLinks() override;
-
-    void setConnectedLinks(std::vector<std::shared_ptr<Link>> *map) override;
-    void removeConnectedLink(Link *link) override;
-    void addConnectedLink(std::shared_ptr<Link> link) override;
-    std::unique_ptr<std::vector<std::string>> print() override;
-
-    void                               showConfiguration() override;
-    PixmapIcon                        *getIcon() override;
-    ItemConfiguration                 *getConf() override;
-    std::unique_ptr<ConnectableCloner> cloner(
-        SchemaCloner *parent = nullptr) override;
-
-    std::vector<std::shared_ptr<Link>> connectedLinks;
-
-    Schema *schema;
-
-    std::unique_ptr<MachineConfiguration> conf;
-    std::unique_ptr<PixmapIcon>           icon;
-    unsigned                              getId() const override;
-    void                                  setId(unsigned newId) override;
-        /* j = json{{"name", p.name}, {"address", p.address}, {"age", p.age}}; */
-
-        /* j.at("name").get_to(p.name); */
-        /* j.at("address").get_to(p.address); */
-        /* j.at("age").get_to(p.age); */
-
-private:
-    unsigned                                    id;
-    std::unique_ptr<MachineConfigurationWindow> window;
+struct MachineConf {
+    unsigned id                          = 0;
+    std::string name;
+    double computationalPower            = 1.0;
+    double loadFactor                    = 0.1;
+    double ram                           = 1.0;
+    double hardDisk                      = 1.0;
+    double energyConsumption             = 1.0;
+    double costPerProcessing             = 1.0;
+    double costPerMemory                 = 1.0;
+    double costPerDisk                   = 1.0;
+    int    coreCount                     = 1;
+    bool   master                        = false;
+    std::string owner;
+    std::string schedulingAlgorithm;
+    double      gpuPower                 = 1.0;
+    int         gpuCoreCount             = 1;
+    double      gpuInterconnectionBandwidth = 1.0;
+    double      wattageIdle              = 1.0;
+    double      wattageMax               = 1.0;
+    std::string scheduler                = "RoundRobin";
+    std::vector<unsigned> slaves;
 };
 
-
 using json = nlohmann::json;
-
-void to_json(json& j, const Machine& m);
-void from_json(const json& j, Machine& m);
+void to_json(json& j, const MachineConf& m);
+void from_json(const json& j, MachineConf& m);
