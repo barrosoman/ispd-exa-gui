@@ -1,5 +1,5 @@
 #pragma once
-#include "components/machineset.h"
+#include "components/schema.h"
 #include <QDialog>
 
 namespace Ui {
@@ -11,7 +11,7 @@ class MachineSetConfigurationWindow : public QDialog
     Q_OBJECT
 
 public:
-    explicit MachineSetConfigurationWindow(MachineSetConf* conf, QWidget* parent = nullptr);
+    explicit MachineSetConfigurationWindow(Schema* schema, unsigned id, QWidget* parent = nullptr);
 
 public slots:
     void setName(const QString& newName);
@@ -21,5 +21,6 @@ public slots:
 
 private:
     Ui::MachineSetConfigurationWindow* ui;
-    MachineSetConf*                    conf;
+    Schema*  schema;
+    unsigned id;
 };

@@ -42,6 +42,8 @@ add_executable(ispd-exa-gui src/ispd-exa-gui.cpp
   src/window/linkconfigurationwindow.cpp include/window/linkconfigurationwindow.h forms/linkconfigurationwindow.ui
   src/window/machinesetconfigurationwindow.cpp include/window/machinesetconfigurationwindow.h forms/machinesetconfigurationwindow.ui
   src/window/switchconfigurationwindow.cpp include/window/switchconfigurationwindow.h forms/switchconfigurationwindow.ui
+  src/window/schemaconfigurationwindow.cpp include/window/schemaconfigurationwindow.h forms/schemaconfigurationwindow.ui
+  src/window/propertiespanel.cpp include/window/propertiespanel.h
 
   # Components
   src/components/machine.cpp include/components/machine.h

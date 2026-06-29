@@ -22,12 +22,15 @@ public:
 
     std::map<unsigned, PixmapIcon*> nodeIcons;
     std::map<unsigned, LinkIcon*>   linkIcons;
+    std::map<unsigned, QPointF>     layout;
 
     void addIcon(PixmapIcon* icon, QPointF pos = QPointF(0, 0));
     void addLink(LinkIcon* licon);
     void drawBackgroundLines();
+    void populate();
 
     void onNodeMoved(unsigned id);
+    void onNodeClicked(unsigned id);
     void onNodeDoubleClicked(unsigned id);
     void onLinkDoubleClicked(unsigned id);
 
@@ -41,6 +44,7 @@ protected:
 
 signals:
     void clicked(QPointF position);
+    void nodeSelected(unsigned id);
 
 private:
     QPointF      getScenePosition();

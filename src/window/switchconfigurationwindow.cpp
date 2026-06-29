@@ -4,8 +4,8 @@
 #include <QLineEdit>
 #include <QSpinBox>
 
-SwitchConfigurationWindow::SwitchConfigurationWindow(SwitchConf* conf, QWidget* parent)
-    : QDialog(parent), ui(new Ui::SwitchConfigurationWindow), conf(conf)
+SwitchConfigurationWindow::SwitchConfigurationWindow(Schema* schema, unsigned id, QWidget* parent)
+    : QDialog(parent), ui(new Ui::SwitchConfigurationWindow), schema(schema), id(id)
 {
     this->ui->setupUi(this);
     this->setupConfAndWindow();
@@ -13,6 +13,9 @@ SwitchConfigurationWindow::SwitchConfigurationWindow(SwitchConf* conf, QWidget* 
 
 void SwitchConfigurationWindow::setupConfAndWindow()
 {
+    auto* conf = schema->findSwitch(id);
+    if (!conf) return;
+
     this->ui->nameEditLine->setText(conf->name.c_str());
     this->ui->loadFactorSpinBox->setValue(conf->loadFactor);
     this->ui->latencySpinBox->setValue(conf->latency);
@@ -28,7 +31,7 @@ void SwitchConfigurationWindow::setupConfAndWindow()
             this, &SwitchConfigurationWindow::setLoadFactor);
 }
 
-void SwitchConfigurationWindow::setName(const QString& newName) { conf->name      = newName.toStdString(); }
-void SwitchConfigurationWindow::setBandwidth(int v)             { conf->bandwidth  = v; }
-void SwitchConfigurationWindow::setLoadFactor(double v)         { conf->loadFactor = v; }
-void SwitchConfigurationWindow::setLatency(double v)            { conf->latency    = v; }
+void SwitchConfigurationWindow::setName(const QString& v) { auto* c = schema->findSwitch(id); if (c) c->name      = v.toStdString(); }
+void SwitchConfigurationWindow::setBandwidth(int v)        { auto* c = schema->findSwitch(id); if (c) c->bandwidth  = v; }
+void SwitchConfigurationWindow::setLoadFactor(double v)    { auto* c = schema->findSwitch(id); if (c) c->loadFactor = v; }
+void SwitchConfigurationWindow::setLatency(double v)       { auto* c = schema->findSwitch(id); if (c) c->latency    = v; }

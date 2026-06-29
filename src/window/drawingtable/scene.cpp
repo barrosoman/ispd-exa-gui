@@ -5,11 +5,14 @@
 #include "window/linkconfigurationwindow.h"
 #include "window/machineconfigurationwindow.h"
 #include "window/machinesetconfigurationwindow.h"
+#include "window/schemaconfigurationwindow.h"
+#include "window/schemawindow.h"
 #include "window/switchconfigurationwindow.h"
 #include <QDebug>
 #include <QGraphicsSceneMouseEvent>
 #include <QKeyEvent>
 #include <QPen>
+#include <cstdio>
 
 Scene::Scene(DrawingTable* parent)
     : QGraphicsScene{parent}, table(parent)
@@ -30,6 +33,7 @@ void Scene::addIcon(PixmapIcon* icon, QPointF pos)
     icon->setPos(pos);
     addItem(icon);
     nodeIcons[icon->node_id] = icon;
+    layout[icon->node_id] = pos;
 }
 
 void Scene::addLink(LinkIcon* licon)
@@ -39,8 +43,17 @@ void Scene::addLink(LinkIcon* licon)
     linkIcons[licon->link_id] = licon;
 }
 
+void Scene::onNodeClicked(unsigned id)
+{
+    emit nodeSelected(id);
+}
+
 void Scene::onNodeMoved(unsigned id)
 {
+    auto it = nodeIcons.find(id);
+    if (it != nodeIcons.end())
+        layout[id] = it->second->pos();
+
     for (auto& [lid, licon] : linkIcons) {
         auto* lconf = schema->findLink(lid);
         if (lconf && (lconf->from_id == id || lconf->to_id == id))
@@ -51,12 +64,16 @@ void Scene::onNodeMoved(unsigned id)
 void Scene::onNodeDoubleClicked(unsigned id)
 {
     if (!configWindows.count(id)) {
-        if (auto* m = schema->findMachine(id))
-            configWindows[id] = new MachineConfigurationWindow(m);
-        else if (auto* s = schema->findSwitch(id))
-            configWindows[id] = new SwitchConfigurationWindow(s);
-        else if (auto* ms = schema->findMachineSet(id))
-            configWindows[id] = new MachineSetConfigurationWindow(ms);
+        if (id == schema->output_id)
+            configWindows[id] = new SchemaConfigurationWindow(schema);
+        else if (schema->findMachine(id))
+            configWindows[id] = new MachineConfigurationWindow(schema, id);
+        else if (schema->findSwitch(id))
+            configWindows[id] = new SwitchConfigurationWindow(schema, id);
+        else if (schema->findMachineSet(id))
+            configWindows[id] = new MachineSetConfigurationWindow(schema, id);
+        else if (auto* sub = schema->findSchema(id))
+            configWindows[id] = new SchemaWindow(sub);
     }
     if (configWindows.count(id))
         configWindows[id]->show();
@@ -65,8 +82,8 @@ void Scene::onNodeDoubleClicked(unsigned id)
 void Scene::onLinkDoubleClicked(unsigned id)
 {
     if (!linkConfigWindows.count(id)) {
-        if (auto* lconf = schema->findLink(id))
-            linkConfigWindows[id] = new LinkConfigurationWindow(lconf);
+        if (schema->findLink(id))
+            linkConfigWindows[id] = new LinkConfigurationWindow(schema, id);
     }
     if (linkConfigWindows.count(id))
         linkConfigWindows[id]->show();
@@ -97,12 +114,20 @@ void Scene::deleteItems()
             removeItem(linkIcons[lid]);
             delete linkIcons[lid];
             linkIcons.erase(lid);
-            linkConfigWindows.erase(lid);
+            auto lcwIt = linkConfigWindows.find(lid);
+            if (lcwIt != linkConfigWindows.end()) {
+                delete lcwIt->second;
+                linkConfigWindows.erase(lcwIt);
+            }
         }
         removeItem(nodeIcons[id]);
         delete nodeIcons[id];
         nodeIcons.erase(id);
-        configWindows.erase(id);
+        auto cwIt = configWindows.find(id);
+        if (cwIt != configWindows.end()) {
+            delete cwIt->second;
+            configWindows.erase(cwIt);
+        }
         schema->removeNode(id);
     }
 
@@ -116,7 +141,11 @@ void Scene::deleteItems()
         removeItem(it->second);
         delete it->second;
         linkIcons.erase(it);
-        linkConfigWindows.erase(id);
+        auto lcwIt = linkConfigWindows.find(id);
+        if (lcwIt != linkConfigWindows.end()) {
+            delete lcwIt->second;
+            linkConfigWindows.erase(lcwIt);
+        }
         schema->removeLink(id);
     }
 
@@ -132,6 +161,7 @@ void Scene::keyPressEvent(QKeyEvent* event)
         break;
     case Qt::Key_C:
         clipboard_id = whichNode(getScenePosition());
+        printf("Node Id: %d\n", clipboard_id);
         break;
     case Qt::Key_V: {
         if (clipboard_id == 0) break;
@@ -161,6 +191,39 @@ void Scene::keyPressEvent(QKeyEvent* event)
             *newMs = copy;
             newMs->id = new_id;
             path = setPath; pathSel = setPathSelected;
+        }
+        else if (auto *sm = schema->findSchema(clipboard_id)) {
+            Schema cloned = clone_schema(*sm, schema->next_id);
+            new_id = cloned.id;
+
+            std::map<unsigned, QPointF> remappedLayout;
+            if (configWindows.count(clipboard_id)) {
+                auto *srcWin =
+                    dynamic_cast<SchemaWindow *>(configWindows[clipboard_id]);
+                if (srcWin) {
+                    auto &srcLayout = srcWin->drawingTable->getScene()->layout;
+                    // reconstruct id_map by zipping original and cloned vectors
+                    // (same order)
+                    std::map<unsigned, unsigned> id_map;
+                    for (size_t i = 0; i < sm->machines.size(); i++)
+                        id_map[sm->machines[i].id] = cloned.machines[i].id;
+                    for (size_t i = 0; i < sm->switches.size(); i++)
+                        id_map[sm->switches[i].id] = cloned.switches[i].id;
+                    for (size_t i = 0; i < sm->machineSets.size(); i++)
+                        id_map[sm->machineSets[i].id] =
+                            cloned.machineSets[i].id;
+                    for (size_t i = 0; i < sm->schemas.size(); i++)
+                        id_map[sm->schemas[i].id] = cloned.schemas[i].id;
+                    for (auto &[old_id, p] : srcLayout)
+                        if (id_map.count(old_id))
+                            remappedLayout[id_map[old_id]] = p;
+                }
+            }
+
+            schema->schemas.push_back(std::move(cloned));
+            auto* sub = schema->findSchema(new_id);
+            configWindows[new_id] = new SchemaWindow(sub, std::move(remappedLayout));
+            path = schemaPath; pathSel = schemaPathSelected;
         }
 
         if (new_id != 0)
@@ -201,8 +264,11 @@ void Scene::mousePressEvent(QGraphicsSceneMouseEvent* event)
         addIcon(icon, event->scenePos());
         break;
     }
-    case SCHEMA:
+    case SCHEMA: {
+        auto *icon = table->addSchema();
+        addIcon(icon, event->scenePos());
         break;
+    }
     case LINK: {
         unsigned id = whichNode(event->scenePos());
         if (id == 0) return;
@@ -213,7 +279,12 @@ void Scene::mousePressEvent(QGraphicsSceneMouseEvent* event)
             auto beginIt = nodeIcons.find(lBegin_id);
             auto endIt   = nodeIcons.find(id);
             if (beginIt != nodeIcons.end() && endIt != nodeIcons.end()) {
-                unsigned link_id = table->addLink(lBegin_id, id);
+                auto resolveEndpoint = [&](unsigned icon_id) -> unsigned {
+                    auto* sub = schema->findSchema(icon_id);
+                    return (sub && sub->output_id) ? sub->output_id : icon_id;
+                };
+                unsigned link_id = table->addLink(resolveEndpoint(lBegin_id),
+                                                  resolveEndpoint(id));
                 addLink(new LinkIcon(link_id, beginIt->second, endIt->second));
             }
             lBegin_id = 0;
@@ -252,6 +323,34 @@ void Scene::selectionArea(QGraphicsSceneMouseEvent* event)
     selectionRect->setBrush(QBrush(QColor(100, 100, 255, 40)));
     selectionRect->setRect(QRectF(startSelection, event->scenePos()).normalized());
     addItem(selectionRect);
+}
+
+void Scene::populate()
+{
+    int col = 0, row = 0;
+    auto pos = [&](unsigned id) -> QPointF {
+        auto it = layout.find(id);
+        if (it != layout.end()) return it->second;
+        if (id == schema->output_id) return QPointF(960, 540);
+        QPointF p(80 + col * 120, 80 + row * 120);
+        if (++col >= 5) { col = 0; ++row; }
+        return p;
+    };
+
+    for (auto& m  : schema->machines)
+        addIcon(new PixmapIcon(m.id,  PixmapPair(machinePath,    machinePathSelected)),  pos(m.id));
+    for (auto& s  : schema->switches)
+        addIcon(new PixmapIcon(s.id,  PixmapPair(switchPath,     switchPathSelected)),   pos(s.id));
+    for (auto& ms : schema->machineSets)
+        addIcon(new PixmapIcon(ms.id, PixmapPair(setPath,        setPathSelected)),      pos(ms.id));
+    for (auto& sub : schema->schemas)
+        addIcon(new PixmapIcon(sub.id, PixmapPair(schemaPath,    schemaPathSelected)),   pos(sub.id));
+    for (auto& l  : schema->links) {
+        auto fromIt = nodeIcons.find(l.from_id);
+        auto toIt   = nodeIcons.find(l.to_id);
+        if (fromIt != nodeIcons.end() && toIt != nodeIcons.end())
+            addLink(new LinkIcon(l.id, fromIt->second, toIt->second));
+    }
 }
 
 void Scene::drawBackgroundLines()

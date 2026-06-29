@@ -1,5 +1,5 @@
 #pragma once
-#include "components/link.h"
+#include "components/schema.h"
 #include <QDialog>
 
 namespace Ui {
@@ -11,7 +11,7 @@ class LinkConfigurationWindow : public QDialog
     Q_OBJECT
 
 public:
-    explicit LinkConfigurationWindow(LinkConf* conf, QWidget* parent = nullptr);
+    explicit LinkConfigurationWindow(Schema* schema, unsigned id, QWidget* parent = nullptr);
 
 public slots:
     void setName(const QString& newName);
@@ -22,5 +22,6 @@ public slots:
 private:
     void setupConfAndWindow();
     Ui::LinkConfigurationWindow* ui;
-    LinkConf*                    conf;
+    Schema*  schema;
+    unsigned id;
 };

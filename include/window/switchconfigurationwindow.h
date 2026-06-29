@@ -1,5 +1,5 @@
 #pragma once
-#include "components/switch.h"
+#include "components/schema.h"
 #include <QDialog>
 
 namespace Ui {
@@ -11,7 +11,7 @@ class SwitchConfigurationWindow : public QDialog
     Q_OBJECT
 
 public:
-    explicit SwitchConfigurationWindow(SwitchConf* conf, QWidget* parent = nullptr);
+    explicit SwitchConfigurationWindow(Schema* schema, unsigned id, QWidget* parent = nullptr);
 
 public slots:
     void setName(const QString& newName);
@@ -22,5 +22,6 @@ public slots:
 private:
     void setupConfAndWindow();
     Ui::SwitchConfigurationWindow* ui;
-    SwitchConf*                    conf;
+    Schema*  schema;
+    unsigned id;
 };

@@ -34,6 +34,8 @@ void PixmapIcon::updatePosition()
 void PixmapIcon::mousePressEvent(QGraphicsSceneMouseEvent* event)
 {
     qDebug() << "Node id:" << node_id;
+    if (auto* s = dynamic_cast<Scene*>(scene()))
+        s->onNodeClicked(node_id);
     QGraphicsPixmapItem::mousePressEvent(event);
 }
 

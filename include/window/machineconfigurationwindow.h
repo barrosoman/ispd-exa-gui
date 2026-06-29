@@ -1,5 +1,5 @@
 #pragma once
-#include "components/machine.h"
+#include "components/schema.h"
 #include <QDialog>
 
 namespace Ui {
@@ -11,7 +11,7 @@ class MachineConfigurationWindow : public QDialog
     Q_OBJECT
 
 public:
-    explicit MachineConfigurationWindow(MachineConf* conf, QWidget* parent = nullptr);
+    explicit MachineConfigurationWindow(Schema* schema, unsigned id, QWidget* parent = nullptr);
 
 public slots:
     void setName(const QString& newName);
@@ -25,7 +25,7 @@ public slots:
     void setDisk(int disk);
     void setWattageIdle(int wattageIdle);
     void setWattageMax(int wattageMax);
-    void checkMaster(int checked);
+    void checkMaster(Qt::CheckState checked);
     void setScheduler(const QString& scheduler);
 
 private slots:
@@ -33,6 +33,7 @@ private slots:
 
 private:
     Ui::MachineConfigurationWindow* ui;
-    MachineConf* conf;
+    Schema*  schema;
+    unsigned id;
     void setupConfAndWindow();
 };

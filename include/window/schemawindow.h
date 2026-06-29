@@ -1,9 +1,13 @@
 #pragma once
 
+#include <QDockWidget>
 #include <QMainWindow>
+#include <QPointF>
+#include <map>
 
 class Schema;
 class DrawingTable;
+class PropertiesPanel;
 
 class SchemaWindow : public QMainWindow
 {
@@ -11,6 +15,9 @@ class SchemaWindow : public QMainWindow
 
 public:
     Schema *schema;
-    explicit SchemaWindow(Schema *schema, QWidget *parent = nullptr);
-    DrawingTable *drawingTable;
+    explicit SchemaWindow(Schema *schema,
+                          std::map<unsigned, QPointF> layout = {},
+                          QWidget *parent = nullptr);
+    DrawingTable   *drawingTable;
+    PropertiesPanel *propertiesPanel;
 };

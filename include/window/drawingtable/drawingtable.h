@@ -5,8 +5,9 @@
 #include "window/drawingtable/view.h"
 #include "window/simulation.h"
 #include "window/users.h"
-#include <QRadioButton>
+#include <QPointF>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -18,13 +19,16 @@ class DrawingTable : public QWidget
 
 public:
     DrawingTable(QFrame* parent = nullptr);
-    DrawingTable(Schema* schema, QWidget* parent = nullptr);
+    DrawingTable(Schema* schema,
+                 std::map<unsigned, QPointF> layout = {},
+                 QWidget* parent = nullptr);
 
     Schema* schema;
 
     PixmapIcon* addMachine();
     PixmapIcon* addSwitch();
     PixmapIcon* addSet();
+    PixmapIcon* addSchema();
     unsigned    addLink(unsigned from_id, unsigned to_id);
 
     Scene* getScene();

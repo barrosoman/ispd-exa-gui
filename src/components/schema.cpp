@@ -20,6 +20,21 @@ unsigned Schema::addSwitch(std::string_view nodeName)
     return new_id;
 }
 
+unsigned Schema::addSchema(std::string_view nodeName)
+{
+    unsigned new_id = next_id++;
+    Schema sub;
+    sub.id   = new_id;
+    sub.name = defaultName("Schema", nodeName, new_id);
+
+    unsigned sw_id = sub.next_id++;
+    sub.switches.push_back({.id = sw_id, .name = "Output"});
+    sub.output_id = sw_id;
+
+    schemas.push_back(std::move(sub));
+    return new_id;
+}
+
 unsigned Schema::addMachineSet(std::string_view nodeName)
 {
     unsigned new_id = next_id++;
@@ -60,6 +75,13 @@ MachineSetConf* Schema::findMachineSet(unsigned id)
     return nullptr;
 }
 
+Schema* Schema::findSchema(unsigned id)
+{
+    for (auto& s : schemas)
+        if (s.id == id) return &s;
+    return nullptr;
+}
+
 LinkConf* Schema::findLink(unsigned id)
 {
     for (auto& l : links)
@@ -69,11 +91,17 @@ LinkConf* Schema::findLink(unsigned id)
 
 void Schema::removeNode(unsigned id)
 {
+    unsigned output_id = 0;
+    for (auto& s : schemas)
+        if (s.id == id) { output_id = s.output_id; break; }
+
     std::erase_if(machines,    [id](auto& m)  { return m.id == id; });
     std::erase_if(switches,    [id](auto& s)  { return s.id == id; });
     std::erase_if(machineSets, [id](auto& ms) { return ms.id == id; });
-    std::erase_if(links, [id](auto& l) {
-        return l.from_id == id || l.to_id == id;
+    std::erase_if(schemas,     [id](auto& s)  { return s.id == id; });
+    std::erase_if(links, [id, output_id](auto& l) {
+        return l.from_id == id  || l.to_id == id ||
+              (output_id && (l.from_id == output_id || l.to_id == output_id));
     });
 }
 
@@ -107,6 +135,11 @@ Schema clone_schema(const Schema& src, unsigned& next_id)
     for (auto ms : src.machineSets) {
         ms.id = remap(ms.id);
         result.machineSets.push_back(ms);
+    }
+    for (const auto& sub : src.schemas) {
+        Schema cloned = clone_schema(sub, next_id);
+        id_map[sub.id] = cloned.id;
+        result.schemas.push_back(std::move(cloned));
     }
     for (auto l : src.links) {
         l.id      = next_id++;

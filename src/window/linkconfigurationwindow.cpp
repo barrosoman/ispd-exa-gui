@@ -4,8 +4,8 @@
 #include <QLineEdit>
 #include <QSpinBox>
 
-LinkConfigurationWindow::LinkConfigurationWindow(LinkConf* conf, QWidget* parent)
-    : QDialog(parent), ui(new Ui::LinkConfigurationWindow), conf(conf)
+LinkConfigurationWindow::LinkConfigurationWindow(Schema* schema, unsigned id, QWidget* parent)
+    : QDialog(parent), ui(new Ui::LinkConfigurationWindow), schema(schema), id(id)
 {
     this->ui->setupUi(this);
     this->setupConfAndWindow();
@@ -13,6 +13,9 @@ LinkConfigurationWindow::LinkConfigurationWindow(LinkConf* conf, QWidget* parent
 
 void LinkConfigurationWindow::setupConfAndWindow()
 {
+    auto* conf = schema->findLink(id);
+    if (!conf) return;
+
     this->ui->nameEditLine->setText(conf->name.c_str());
     this->ui->bandwidthSpinBox->setValue(conf->bandwidth);
     this->ui->latencySpinBox->setValue(conf->latency);
@@ -28,7 +31,7 @@ void LinkConfigurationWindow::setupConfAndWindow()
             this, &LinkConfigurationWindow::setLoadFactor);
 }
 
-void LinkConfigurationWindow::setName(const QString& newName) { conf->name      = newName.toStdString(); }
-void LinkConfigurationWindow::setBandwidth(int v)             { conf->bandwidth  = v; }
-void LinkConfigurationWindow::setLoadFactor(double v)         { conf->loadFactor = v; }
-void LinkConfigurationWindow::setLatency(double v)            { conf->latency    = v; }
+void LinkConfigurationWindow::setName(const QString& v) { auto* c = schema->findLink(id); if (c) c->name      = v.toStdString(); }
+void LinkConfigurationWindow::setBandwidth(int v)        { auto* c = schema->findLink(id); if (c) c->bandwidth  = v; }
+void LinkConfigurationWindow::setLoadFactor(double v)    { auto* c = schema->findLink(id); if (c) c->loadFactor = v; }
+void LinkConfigurationWindow::setLatency(double v)       { auto* c = schema->findLink(id); if (c) c->latency    = v; }

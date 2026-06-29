@@ -4,14 +4,19 @@
 #include <QLineEdit>
 #include <QSpinBox>
 
-MachineSetConfigurationWindow::MachineSetConfigurationWindow(MachineSetConf* conf, QWidget* parent)
-    : QDialog(parent), ui(new Ui::MachineSetConfigurationWindow), conf(conf)
+MachineSetConfigurationWindow::MachineSetConfigurationWindow(Schema* schema, unsigned id, QWidget* parent)
+    : QDialog(parent), ui(new Ui::MachineSetConfigurationWindow), schema(schema), id(id)
 {
     this->ui->setupUi(this);
+    auto* conf = schema->findMachineSet(id);
+    if (!conf) return;
     this->ui->nameEditLine->setText(conf->name.c_str());
+
+    connect(this->ui->nameEditLine, &QLineEdit::textChanged,
+            this, &MachineSetConfigurationWindow::setName);
 }
 
-void MachineSetConfigurationWindow::setName(const QString& newName) { conf->name      = newName.toStdString(); }
-void MachineSetConfigurationWindow::setBandwidth(int v)             { conf->bandwidth  = v; }
-void MachineSetConfigurationWindow::setLoadFactor(double v)         { conf->loadFactor = v; }
-void MachineSetConfigurationWindow::setLatency(double v)            { conf->latency    = v; }
+void MachineSetConfigurationWindow::setName(const QString& v) { auto* c = schema->findMachineSet(id); if (c) c->name      = v.toStdString(); }
+void MachineSetConfigurationWindow::setBandwidth(int v)        { auto* c = schema->findMachineSet(id); if (c) c->bandwidth  = v; }
+void MachineSetConfigurationWindow::setLoadFactor(double v)    { auto* c = schema->findMachineSet(id); if (c) c->loadFactor = v; }
+void MachineSetConfigurationWindow::setLatency(double v)       { auto* c = schema->findMachineSet(id); if (c) c->latency    = v; }

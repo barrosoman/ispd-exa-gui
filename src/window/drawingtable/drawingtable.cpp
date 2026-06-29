@@ -23,7 +23,7 @@
 #include <window/addworkloadwindow.h>
 void printSchema(Schema *schema);
 
-DrawingTable::DrawingTable(QFrame *parent) : DrawingTable(new Schema(), parent)
+DrawingTable::DrawingTable(QFrame *parent) : DrawingTable(new Schema(), {}, parent)
 {
     mainContext.mainSchema = std::shared_ptr<Schema>(this->schema);
 
@@ -85,7 +85,7 @@ DrawingTable::DrawingTable(QFrame *parent) : DrawingTable(new Schema(), parent)
 
 }
 
-DrawingTable::DrawingTable(Schema *schema, QWidget *parent) : QWidget{parent}
+DrawingTable::DrawingTable(Schema *schema, std::map<unsigned, QPointF> layout, QWidget *parent) : QWidget{parent}
 {
     this->schema = schema;
     this->view   = new View(this);
@@ -105,6 +105,9 @@ DrawingTable::DrawingTable(Schema *schema, QWidget *parent) : QWidget{parent}
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(buttonsRow);
     mainLayout->addWidget(view);
+
+    scene->layout = std::move(layout);
+    scene->populate();
 }
 
 ///
@@ -219,6 +222,12 @@ PixmapIcon *DrawingTable::addSwitch()
     return new PixmapIcon(id, PixmapPair(switchPath, switchPathSelected));
 }
 
+PixmapIcon *DrawingTable::addSchema()
+{
+    const unsigned id = schema->addSchema();
+    return new PixmapIcon(id, PixmapPair(schemaPath, schemaPathSelected));
+}
+
 PixmapIcon *DrawingTable::addSet()
 {
     const unsigned id = schema->addMachineSet();
@@ -302,10 +311,12 @@ void DrawingTable::openUserWindowClicked()
 void DrawingTable::openSimulationWindowClicked()
 {
     /// temporary must be removed when simulation allows more than one workload
-    for (const auto& m : this->schema->machines) {
-        if (m.master) {
-            this->mainContext.workloads.at(0).master_id = m.id;
-            break;
+    if (!this->mainContext.workloads.empty()) {
+        for (const auto& m : this->schema->machines) {
+            if (m.master) {
+                this->mainContext.workloads.at(0).master_id = m.id;
+                break;
+            }
         }
     }
 
